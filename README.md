@@ -19,4 +19,4 @@ uv run gunicorn -c gunicorn.conf.py wsgi:app
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure your settings. AWS credentials are required for LLM evaluation (General Knowledge) and Code Interpreter (Coding questions).
+Copy `.env.example` to `.env` and configure your settings. AWS credentials must be configured via AWS CLI profiles (`aws configure`) or IAM roles — never in .env files.

@@ -20,8 +20,8 @@ def _get_config_flag(key, default="false"):
 
 def _get_bedrock_model():
     """Create a Bedrock model instance."""
-    region = os.environ.get("AWS_REGION", "us-west-2")
-    model_id = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+    region = os.environ.get("AWS_REGION", "eu-west-1")
+    model_id = os.environ.get("BEDROCK_MODEL_ID", "eu.anthropic.claude-sonnet-4-20250514-v1:0")
     return BedrockModel(model_id=model_id, region_name=region)
 
 
@@ -144,7 +144,7 @@ def evaluate_coding(question, player_code):
     if _get_config_flag(GlobalConfig.AUTO_PASS_ALL):
         return {"correct": True, "grade": "Correct", "message": "Auto-pass enabled.", "hint_passed": True, "hidden_passed": True}
 
-    region = os.environ.get("AWS_REGION", "us-west-2")
+    region = os.environ.get("AWS_REGION", "eu-west-1")
 
     try:
         from bedrock_agentcore.tools.code_interpreter_client import CodeInterpreter

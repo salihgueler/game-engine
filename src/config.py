@@ -9,9 +9,9 @@ class Config:
     JWT_EXPIRATION = timedelta(hours=24)
     JWT_ALGORITHM = "HS256"
 
-    # Strands / Bedrock
-    AWS_REGION = os.environ.get("AWS_REGION", "us-west-2")
-    BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+    # Strands / Bedrock — credentials via AWS CLI profiles or IAM roles, never .env
+    AWS_REGION = os.environ.get("AWS_REGION", "eu-west-1")
+    BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "eu.anthropic.claude-sonnet-4-20250514-v1:0")
 
 
 class DevelopmentConfig(Config):
