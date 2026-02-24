@@ -16,6 +16,16 @@ class QuestionDifficulty(enum.Enum):
     Hard = "Hard"
 
 
+# Many-to-many association table: QuestionBank <-> Question
+question_bank_questions = db.Table(
+    "question_bank_questions",
+    db.Column("id", db.Integer, primary_key=True, autoincrement=True),
+    db.Column("question_bank_id", db.Integer, db.ForeignKey("question_banks.id"), nullable=False),
+    db.Column("question_id", db.Integer, db.ForeignKey("questions.id"), nullable=False),
+    db.UniqueConstraint("question_bank_id", "question_id", name="uq_bank_question_assignment"),
+)
+
+
 class Event(db.Model):
     __tablename__ = "events"
 
@@ -45,16 +55,17 @@ class QuestionBank(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    questions = db.relationship("Question", backref="question_bank", lazy=True, cascade="all, delete-orphan")
+    # Many-to-many: a bank has many questions, a question can be in many banks
+    questions = db.relationship("Question", secondary=question_bank_questions, backref=db.backref("question_banks", lazy=True), lazy=True)
     games = db.relationship("Game", backref="question_bank", lazy=True)
 
 
 class Question(db.Model):
+    """Independent question entity. Can be assigned to zero, one, or many QuestionBanks."""
     __tablename__ = "questions"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    question_bank_id = db.Column(db.Integer, db.ForeignKey("question_banks.id"), nullable=False)
-    question_number = db.Column(db.Integer, nullable=False)
+    question_number = db.Column(db.Integer, nullable=False, unique=True)
     category = db.Column(db.Enum(QuestionCategory), nullable=False)
     difficulty = db.Column(db.Enum(QuestionDifficulty), nullable=False)
     description = db.Column(db.Text, nullable=False)
@@ -75,8 +86,6 @@ class Question(db.Model):
     times_correct = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-    __table_args__ = (db.UniqueConstraint("question_bank_id", "question_number", name="uq_bank_question_number"),)
 
 
 class Game(db.Model):

@@ -7,6 +7,7 @@ from src.models.models import (
     GameQuestion,
     GamePlayer,
     GlobalConfig,
+    question_bank_questions,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "GameQuestion",
     "GamePlayer",
     "GlobalConfig",
+    "question_bank_questions",
 ]

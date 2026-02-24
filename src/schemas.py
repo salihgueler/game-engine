@@ -67,3 +67,7 @@ class ConfigUpdate(BaseModel):
 
 class QuestionImport(BaseModel):
     questions: list[QuestionCreate]
+
+
+class BankAssignQuestions(BaseModel):
+    question_ids: list[int]
