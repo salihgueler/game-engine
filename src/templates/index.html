@@ -28,14 +28,13 @@
 
 <div class="container-fluid">
     <div class="row">
-        <!-- Sidebar -->
         <div class="col-md-2">
             <div class="nav flex-column nav-pills" role="tablist">
-                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-banks">
-                    <i class="bi bi-collection"></i> Question Banks
-                </button>
-                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-questions">
+                <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-questions">
                     <i class="bi bi-question-circle"></i> Questions
+                </button>
+                <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-banks">
+                    <i class="bi bi-collection"></i> Question Banks
                 </button>
                 <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-test">
                     <i class="bi bi-play-circle"></i> Test Questions
@@ -49,29 +48,16 @@
             </div>
         </div>
 
-        <!-- Main Content -->
         <div class="col-md-10">
             <div class="tab-content">
 
-                <!-- Question Banks Tab -->
-                <div class="tab-pane fade show active" id="tab-banks">
+                <!-- Questions Tab (now primary) -->
+                <div class="tab-pane fade show active" id="tab-questions">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4>Question Banks</h4>
-                        <button class="btn btn-primary btn-sm" onclick="showCreateBankModal()">
-                            <i class="bi bi-plus-circle"></i> New Bank
-                        </button>
-                    </div>
-                    <div id="banks-list"></div>
-                </div>
-
-                <!-- Questions Tab -->
-                <div class="tab-pane fade" id="tab-questions">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4>Questions <small class="text-muted" id="current-bank-name"></small></h4>
+                        <h4>All Questions</h4>
                         <div>
-                            <select id="bank-select" class="form-select form-select-sm d-inline-block w-auto me-2" onchange="loadQuestions()"></select>
-                            <button class="btn btn-success btn-sm me-1" onclick="showCreateQuestionModal()"><i class="bi bi-plus-circle"></i> Add</button>
-                            <button class="btn btn-outline-secondary btn-sm me-1" onclick="exportQuestions()"><i class="bi bi-download"></i> Export</button>
+                            <button class="btn btn-success btn-sm me-1" onclick="showCreateQuestionModal()"><i class="bi bi-plus-circle"></i> New Question</button>
+                            <button class="btn btn-outline-secondary btn-sm me-1" onclick="exportAllQuestions()"><i class="bi bi-download"></i> Export</button>
                             <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('import-file').click()"><i class="bi bi-upload"></i> Import</button>
                             <input type="file" id="import-file" class="d-none" accept=".json" onchange="importQuestions(event)">
                         </div>
@@ -79,14 +65,33 @@
                     <div id="questions-list"></div>
                 </div>
 
+                <!-- Question Banks Tab -->
+                <div class="tab-pane fade" id="tab-banks">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4>Question Banks</h4>
+                        <button class="btn btn-primary btn-sm" onclick="showCreateBankModal()">
+                            <i class="bi bi-plus-circle"></i> New Bank
+                        </button>
+                    </div>
+                    <div id="banks-list"></div>
+                    <hr>
+                    <h5>Bank Questions <small class="text-muted" id="selected-bank-name"></small></h5>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <select id="bank-select" class="form-select form-select-sm" onchange="loadBankQuestions()"></select>
+                        </div>
+                        <div class="col-md-8 text-end">
+                            <button class="btn btn-outline-primary btn-sm" onclick="showAssignModal()"><i class="bi bi-plus-circle"></i> Assign Questions</button>
+                        </div>
+                    </div>
+                    <div id="bank-questions-list"></div>
+                </div>
+
                 <!-- Test Questions Tab -->
                 <div class="tab-pane fade" id="tab-test">
                     <h4>Test Questions</h4>
                     <div class="row mb-3">
-                        <div class="col-md-4">
-                            <select id="test-bank-select" class="form-select form-select-sm" onchange="loadTestQuestions()"></select>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <select id="test-question-select" class="form-select form-select-sm" onchange="showTestQuestion()"></select>
                         </div>
                     </div>
@@ -121,7 +126,7 @@
                 <!-- API Examples Tab -->
                 <div class="tab-pane fade" id="tab-api">
                     <h4>API Usage Examples</h4>
-                    <p class="text-muted">Use these curl examples to interact with the Quest API. Replace <code>&lt;TOKEN&gt;</code> with your JWT token.</p>
+                    <p class="text-muted">Replace <code>&lt;TOKEN&gt;</code> with your JWT token.</p>
                     <div class="mb-3">
                         <label class="form-label">Your current token:</label>
                         <input type="text" class="form-control form-control-sm font-monospace" id="api-token-display" readonly>
@@ -197,7 +202,6 @@
                     <label class="form-label">Hint</label>
                     <input type="text" class="form-control" id="q-hint" placeholder="Hint or clue for the player">
                 </div>
-                <!-- Multiple Choice Options -->
                 <div id="mc-fields" class="d-none">
                     <label class="form-label">Options (4 choices)</label>
                     <input type="text" class="form-control mb-1" id="q-opt-0" placeholder="Option A">
@@ -205,16 +209,15 @@
                     <input type="text" class="form-control mb-1" id="q-opt-2" placeholder="Option C">
                     <input type="text" class="form-control mb-1" id="q-opt-3" placeholder="Option D">
                 </div>
-                <!-- Coding Fields -->
                 <div id="coding-fields" class="d-none">
                     <div class="row mb-2">
                         <div class="col-md-6">
                             <label class="form-label">Sample Input (Hint)</label>
-                            <textarea class="form-control" id="q-sample-input" rows="2" placeholder="{'s1': {5,6,7}, 's2': {7}}"></textarea>
+                            <textarea class="form-control" id="q-sample-input" rows="2"></textarea>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Sample Output (Hint)</label>
-                            <textarea class="form-control" id="q-sample-output" rows="2" placeholder="{5, 6}"></textarea>
+                            <textarea class="form-control" id="q-sample-output" rows="2"></textarea>
                         </div>
                     </div>
                     <div class="row">
@@ -237,6 +240,26 @@
     </div>
 </div>
 
+<!-- Assign Questions to Bank Modal -->
+<div class="modal fade" id="assignModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Assign Questions to Bank</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Select questions to assign to this bank. Already-assigned questions are checked.</p>
+                <div id="assign-question-list" style="max-height: 400px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveAssignments()">Save Assignments</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -245,15 +268,14 @@ let TOKEN = null;
 let allBanks = [];
 let allQuestions = [];
 let currentTestQuestion = null;
+let bankQuestionIds = new Set();
 
-// --- Auth ---
 async function fetchToken() {
     const res = await fetch(`${API}/api/auth/token`, { method: 'POST' });
     const data = await res.json();
     TOKEN = data.token;
     document.getElementById('token-status').textContent = 'Token active';
     document.getElementById('api-token-display').value = TOKEN;
-    return TOKEN;
 }
 
 function authHeaders() {
@@ -264,12 +286,8 @@ async function apiCall(url, options = {}) {
     if (!TOKEN) await fetchToken();
     options.headers = { ...authHeaders(), ...(options.headers || {}) };
     const res = await fetch(url, options);
-    // Auto-refresh token
     const refreshed = res.headers.get('X-Refreshed-Token');
-    if (refreshed) {
-        TOKEN = refreshed;
-        document.getElementById('api-token-display').value = TOKEN;
-    }
+    if (refreshed) { TOKEN = refreshed; document.getElementById('api-token-display').value = TOKEN; }
     if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error(err.error || JSON.stringify(err));
@@ -289,12 +307,139 @@ function showToast(message, type = 'success') {
     el.addEventListener('hidden.bs.toast', () => el.remove());
 }
 
+// --- Questions (independent) ---
+async function loadQuestions() {
+    try {
+        allQuestions = await apiCall(`${API}/api/questions`);
+        renderQuestions();
+        populateTestSelect();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function renderQuestions() {
+    const html = allQuestions.map(q => {
+        const diffClass = q.difficulty === 'Easy' ? 'badge-easy' : q.difficulty === 'Moderate' ? 'badge-moderate' : 'badge-hard';
+        const catIcon = q.category === 'Coding' ? 'bi-code-slash' : q.category === 'MultipleChoice' ? 'bi-list-check' : 'bi-chat-text';
+        const banks = (q.question_banks || []).map(b => `<span class="badge bg-info me-1">${b.name}</span>`).join('') || '<span class="text-muted small">Unassigned</span>';
+        return `<div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>#${q.question_number}</strong>
+                        <span class="badge bg-primary ms-1"><i class="bi ${catIcon}"></i> ${q.category}</span>
+                        <span class="badge ${diffClass} ms-1">${q.difficulty}</span>
+                        <span class="ms-2">${banks}</span>
+                    </div>
+                    <div>
+                        <button class="btn btn-outline-primary btn-sm me-1" onclick='editQuestion(${JSON.stringify(q).replace(/'/g, "&#39;")})'><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteQuestion(${q.id})"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+                <p class="mt-2 mb-1">${q.description}</p>
+                <small class="text-muted">Correct: ${q.times_correct} | Incorrect: ${q.times_incorrect} | Hints: ${q.times_hint_used} | Passed: ${q.times_passed}</small>
+            </div>
+        </div>`;
+    }).join('');
+    document.getElementById('questions-list').innerHTML = html || '<p class="text-muted">No questions yet.</p>';
+}
+
+function toggleQuestionFields() {
+    const cat = document.getElementById('q-category').value;
+    document.getElementById('mc-fields').classList.toggle('d-none', cat !== 'MultipleChoice');
+    document.getElementById('coding-fields').classList.toggle('d-none', cat !== 'Coding');
+}
+
+function showCreateQuestionModal() {
+    document.getElementById('questionModalTitle').textContent = 'New Question';
+    document.getElementById('edit-question-id').value = '';
+    ['q-category', 'q-difficulty'].forEach(id => document.getElementById(id).selectedIndex = 0);
+    ['q-description', 'q-correct-answer', 'q-hint', 'q-sample-input', 'q-sample-output', 'q-hidden-input', 'q-hidden-output'].forEach(id => document.getElementById(id).value = '');
+    [0,1,2,3].forEach(i => document.getElementById(`q-opt-${i}`).value = '');
+    toggleQuestionFields();
+    new bootstrap.Modal(document.getElementById('questionModal')).show();
+}
+
+function editQuestion(q) {
+    document.getElementById('questionModalTitle').textContent = 'Edit Question';
+    document.getElementById('edit-question-id').value = q.id;
+    document.getElementById('q-category').value = q.category;
+    document.getElementById('q-difficulty').value = q.difficulty;
+    document.getElementById('q-description').value = q.description;
+    document.getElementById('q-correct-answer').value = q.correct_answer;
+    document.getElementById('q-hint').value = q.hint || '';
+    if (q.options) { q.options.forEach((o, i) => { if (i < 4) document.getElementById(`q-opt-${i}`).value = o; }); }
+    document.getElementById('q-sample-input').value = q.code_sample_input || '';
+    document.getElementById('q-sample-output').value = q.code_sample_output || '';
+    document.getElementById('q-hidden-input').value = q.code_hidden_input || '';
+    document.getElementById('q-hidden-output').value = q.code_hidden_output || '';
+    toggleQuestionFields();
+    new bootstrap.Modal(document.getElementById('questionModal')).show();
+}
+
+async function saveQuestion() {
+    const qId = document.getElementById('edit-question-id').value;
+    const cat = document.getElementById('q-category').value;
+    const body = {
+        category: cat,
+        difficulty: document.getElementById('q-difficulty').value,
+        description: document.getElementById('q-description').value,
+        correct_answer: document.getElementById('q-correct-answer').value,
+        hint: document.getElementById('q-hint').value || null,
+    };
+    if (cat === 'MultipleChoice') { body.options = [0,1,2,3].map(i => document.getElementById(`q-opt-${i}`).value).filter(Boolean); }
+    if (cat === 'Coding') {
+        body.code_sample_input = document.getElementById('q-sample-input').value || null;
+        body.code_sample_output = document.getElementById('q-sample-output').value || null;
+        body.code_hidden_input = document.getElementById('q-hidden-input').value || null;
+        body.code_hidden_output = document.getElementById('q-hidden-output').value || null;
+    }
+    try {
+        if (qId) { await apiCall(`${API}/api/questions/${qId}`, { method: 'PUT', body: JSON.stringify(body) }); }
+        else { await apiCall(`${API}/api/questions`, { method: 'POST', body: JSON.stringify(body) }); }
+        bootstrap.Modal.getInstance(document.getElementById('questionModal')).hide();
+        showToast('Question saved');
+        loadQuestions();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteQuestion(qId) {
+    if (!confirm('Delete this question? It will be removed from all banks.')) return;
+    try {
+        await apiCall(`${API}/api/questions/${qId}`, { method: 'DELETE' });
+        showToast('Question deleted');
+        loadQuestions();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function exportAllQuestions() {
+    try {
+        const data = await apiCall(`${API}/api/questions/export`);
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'quest-export-all.json'; a.click();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function importQuestions(event) {
+    const file = event.target.files[0]; if (!file) return;
+    const text = await file.text();
+    try {
+        const data = JSON.parse(text);
+        const payload = data.questions ? data : { questions: data };
+        await apiCall(`${API}/api/questions/import`, { method: 'POST', body: JSON.stringify(payload) });
+        showToast('Questions imported');
+        loadQuestions();
+    } catch (e) { showToast(e.message, 'error'); }
+    event.target.value = '';
+}
+</script>
+
+<script>
 // --- Banks ---
 async function loadBanks() {
     try {
         allBanks = await apiCall(`${API}/api/banks`);
         renderBanks();
-        populateBankSelects();
+        populateBankSelect();
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -315,12 +460,9 @@ function renderBanks() {
     document.getElementById('banks-list').innerHTML = html || '<p class="text-muted">No question banks yet.</p>';
 }
 
-function populateBankSelects() {
+function populateBankSelect() {
     const opts = allBanks.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-    ['bank-select', 'test-bank-select'].forEach(id => {
-        const el = document.getElementById(id);
-        el.innerHTML = '<option value="">Select a bank...</option>' + opts;
-    });
+    document.getElementById('bank-select').innerHTML = '<option value="">Select a bank...</option>' + opts;
 }
 
 function showCreateBankModal() {
@@ -342,11 +484,8 @@ async function saveBank() {
     const name = document.getElementById('bank-name').value.trim();
     if (!name) return showToast('Name is required', 'error');
     try {
-        if (id) {
-            await apiCall(`${API}/api/banks/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
-        } else {
-            await apiCall(`${API}/api/banks`, { method: 'POST', body: JSON.stringify({ name }) });
-        }
+        if (id) { await apiCall(`${API}/api/banks/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }); }
+        else { await apiCall(`${API}/api/banks`, { method: 'POST', body: JSON.stringify({ name }) }); }
         bootstrap.Modal.getInstance(document.getElementById('bankModal')).hide();
         showToast('Bank saved');
         loadBanks();
@@ -354,173 +493,92 @@ async function saveBank() {
 }
 
 async function deleteBank(id) {
-    if (!confirm('Delete this bank and all its questions?')) return;
+    if (!confirm('Delete this bank? Questions will NOT be deleted.')) return;
     try {
         await apiCall(`${API}/api/banks/${id}`, { method: 'DELETE' });
         showToast('Bank deleted');
         loadBanks();
     } catch (e) { showToast(e.message, 'error'); }
 }
-</script>
 
-<script>
-// --- Questions ---
-async function loadQuestions() {
+// --- Bank question assignment ---
+async function loadBankQuestions() {
     const bankId = document.getElementById('bank-select').value;
-    if (!bankId) { document.getElementById('questions-list').innerHTML = ''; return; }
+    if (!bankId) { document.getElementById('bank-questions-list').innerHTML = ''; return; }
     try {
-        allQuestions = await apiCall(`${API}/api/banks/${bankId}/questions`);
+        const questions = await apiCall(`${API}/api/banks/${bankId}/questions`);
+        bankQuestionIds = new Set(questions.map(q => q.id));
         const bank = allBanks.find(b => b.id == bankId);
-        document.getElementById('current-bank-name').textContent = bank ? `(${bank.name})` : '';
-        renderQuestions();
-    } catch (e) { showToast(e.message, 'error'); }
-}
-
-function renderQuestions() {
-    const bankId = document.getElementById('bank-select').value;
-    const html = allQuestions.map(q => {
-        const diffClass = q.difficulty === 'Easy' ? 'badge-easy' : q.difficulty === 'Moderate' ? 'badge-moderate' : 'badge-hard';
-        const catIcon = q.category === 'Coding' ? 'bi-code-slash' : q.category === 'MultipleChoice' ? 'bi-list-check' : 'bi-chat-text';
-        return `<div class="card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+        document.getElementById('selected-bank-name').textContent = bank ? `(${bank.name})` : '';
+        const html = questions.map(q => {
+            const diffClass = q.difficulty === 'Easy' ? 'badge-easy' : q.difficulty === 'Moderate' ? 'badge-moderate' : 'badge-hard';
+            return `<div class="card">
+                <div class="card-body d-flex justify-content-between align-items-center">
                     <div>
                         <strong>#${q.question_number}</strong>
-                        <span class="badge bg-primary ms-1"><i class="bi ${catIcon}"></i> ${q.category}</span>
+                        <span class="badge bg-primary ms-1">${q.category}</span>
                         <span class="badge ${diffClass} ms-1">${q.difficulty}</span>
+                        <span class="ms-2">${q.description.substring(0, 80)}...</span>
                     </div>
-                    <div>
-                        <button class="btn btn-outline-primary btn-sm me-1" onclick='editQuestion(${JSON.stringify(q).replace(/'/g, "\\'")})'><i class="bi bi-pencil"></i></button>
-                        <button class="btn btn-outline-danger btn-sm" onclick="deleteQuestion(${bankId}, ${q.id})"><i class="bi bi-trash"></i></button>
-                    </div>
+                    <button class="btn btn-outline-danger btn-sm" onclick="unassignQuestion(${bankId}, ${q.id})"><i class="bi bi-x-circle"></i> Remove</button>
                 </div>
-                <p class="mt-2 mb-1">${q.description}</p>
-                <small class="text-muted">Correct: ${q.times_correct} | Incorrect: ${q.times_incorrect} | Hints: ${q.times_hint_used} | Passed: ${q.times_passed}</small>
-            </div>
+            </div>`;
+        }).join('');
+        document.getElementById('bank-questions-list').innerHTML = html || '<p class="text-muted">No questions assigned to this bank.</p>';
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function unassignQuestion(bankId, qId) {
+    try {
+        await apiCall(`${API}/api/banks/${bankId}/questions`, { method: 'DELETE', body: JSON.stringify({ question_ids: [qId] }) });
+        showToast('Question removed from bank');
+        loadBankQuestions();
+        loadBanks();
+        loadQuestions();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function showAssignModal() {
+    const bankId = document.getElementById('bank-select').value;
+    if (!bankId) return showToast('Select a bank first', 'warning');
+    const html = allQuestions.map(q => {
+        const checked = bankQuestionIds.has(q.id) ? 'checked' : '';
+        return `<div class="form-check">
+            <input class="form-check-input" type="checkbox" value="${q.id}" id="assign-q-${q.id}" ${checked}>
+            <label class="form-check-label" for="assign-q-${q.id}">
+                #${q.question_number} - ${q.category} - ${q.difficulty} - ${q.description.substring(0, 60)}...
+            </label>
         </div>`;
     }).join('');
-    document.getElementById('questions-list').innerHTML = html || '<p class="text-muted">No questions in this bank.</p>';
+    document.getElementById('assign-question-list').innerHTML = html || '<p class="text-muted">No questions available.</p>';
+    new bootstrap.Modal(document.getElementById('assignModal')).show();
 }
 
-function toggleQuestionFields() {
-    const cat = document.getElementById('q-category').value;
-    document.getElementById('mc-fields').classList.toggle('d-none', cat !== 'MultipleChoice');
-    document.getElementById('coding-fields').classList.toggle('d-none', cat !== 'Coding');
-}
-
-function showCreateQuestionModal() {
+async function saveAssignments() {
     const bankId = document.getElementById('bank-select').value;
-    if (!bankId) return showToast('Select a bank first', 'warning');
-    document.getElementById('questionModalTitle').textContent = 'New Question';
-    document.getElementById('edit-question-id').value = '';
-    ['q-category', 'q-difficulty'].forEach(id => document.getElementById(id).selectedIndex = 0);
-    ['q-description', 'q-correct-answer', 'q-hint', 'q-sample-input', 'q-sample-output', 'q-hidden-input', 'q-hidden-output'].forEach(id => document.getElementById(id).value = '');
-    [0,1,2,3].forEach(i => document.getElementById(`q-opt-${i}`).value = '');
-    toggleQuestionFields();
-    new bootstrap.Modal(document.getElementById('questionModal')).show();
-}
+    const checked = new Set();
+    document.querySelectorAll('#assign-question-list input:checked').forEach(el => checked.add(parseInt(el.value)));
 
-function editQuestion(q) {
-    document.getElementById('questionModalTitle').textContent = 'Edit Question';
-    document.getElementById('edit-question-id').value = q.id;
-    document.getElementById('q-category').value = q.category;
-    document.getElementById('q-difficulty').value = q.difficulty;
-    document.getElementById('q-description').value = q.description;
-    document.getElementById('q-correct-answer').value = q.correct_answer;
-    document.getElementById('q-hint').value = q.hint || '';
-    if (q.options) {
-        q.options.forEach((o, i) => { if (i < 4) document.getElementById(`q-opt-${i}`).value = o; });
-    }
-    document.getElementById('q-sample-input').value = q.code_sample_input || '';
-    document.getElementById('q-sample-output').value = q.code_sample_output || '';
-    document.getElementById('q-hidden-input').value = q.code_hidden_input || '';
-    document.getElementById('q-hidden-output').value = q.code_hidden_output || '';
-    toggleQuestionFields();
-    new bootstrap.Modal(document.getElementById('questionModal')).show();
-}
+    const toAssign = [...checked].filter(id => !bankQuestionIds.has(id));
+    const toRemove = [...bankQuestionIds].filter(id => !checked.has(id));
 
-async function saveQuestion() {
-    const bankId = document.getElementById('bank-select').value;
-    const qId = document.getElementById('edit-question-id').value;
-    const cat = document.getElementById('q-category').value;
-    const body = {
-        category: cat,
-        difficulty: document.getElementById('q-difficulty').value,
-        description: document.getElementById('q-description').value,
-        correct_answer: document.getElementById('q-correct-answer').value,
-        hint: document.getElementById('q-hint').value || null,
-    };
-    if (cat === 'MultipleChoice') {
-        body.options = [0,1,2,3].map(i => document.getElementById(`q-opt-${i}`).value).filter(Boolean);
-    }
-    if (cat === 'Coding') {
-        body.code_sample_input = document.getElementById('q-sample-input').value || null;
-        body.code_sample_output = document.getElementById('q-sample-output').value || null;
-        body.code_hidden_input = document.getElementById('q-hidden-input').value || null;
-        body.code_hidden_output = document.getElementById('q-hidden-output').value || null;
-    }
     try {
-        if (qId) {
-            await apiCall(`${API}/api/banks/${bankId}/questions/${qId}`, { method: 'PUT', body: JSON.stringify(body) });
-        } else {
-            await apiCall(`${API}/api/banks/${bankId}/questions`, { method: 'POST', body: JSON.stringify(body) });
-        }
-        bootstrap.Modal.getInstance(document.getElementById('questionModal')).hide();
-        showToast('Question saved');
+        if (toAssign.length) await apiCall(`${API}/api/banks/${bankId}/questions`, { method: 'POST', body: JSON.stringify({ question_ids: toAssign }) });
+        if (toRemove.length) await apiCall(`${API}/api/banks/${bankId}/questions`, { method: 'DELETE', body: JSON.stringify({ question_ids: toRemove }) });
+        bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
+        showToast('Assignments updated');
+        loadBankQuestions();
+        loadBanks();
         loadQuestions();
     } catch (e) { showToast(e.message, 'error'); }
-}
-
-async function deleteQuestion(bankId, qId) {
-    if (!confirm('Delete this question?')) return;
-    try {
-        await apiCall(`${API}/api/banks/${bankId}/questions/${qId}`, { method: 'DELETE' });
-        showToast('Question deleted');
-        loadQuestions();
-    } catch (e) { showToast(e.message, 'error'); }
-}
-
-async function exportQuestions() {
-    const bankId = document.getElementById('bank-select').value;
-    if (!bankId) return showToast('Select a bank first', 'warning');
-    try {
-        const data = await apiCall(`${API}/api/banks/${bankId}/questions/export`);
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `quest-export-${data.bank_name}.json`;
-        a.click();
-        showToast('Exported');
-    } catch (e) { showToast(e.message, 'error'); }
-}
-
-async function importQuestions(event) {
-    const bankId = document.getElementById('bank-select').value;
-    if (!bankId) return showToast('Select a bank first', 'warning');
-    const file = event.target.files[0];
-    if (!file) return;
-    const text = await file.text();
-    try {
-        const data = JSON.parse(text);
-        const payload = data.questions ? data : { questions: data };
-        await apiCall(`${API}/api/banks/${bankId}/questions/import`, { method: 'POST', body: JSON.stringify(payload) });
-        showToast('Questions imported');
-        loadQuestions();
-    } catch (e) { showToast(e.message, 'error'); }
-    event.target.value = '';
 }
 </script>
 
 <script>
 // --- Test Questions ---
-async function loadTestQuestions() {
-    const bankId = document.getElementById('test-bank-select').value;
-    if (!bankId) return;
-    try {
-        const questions = await apiCall(`${API}/api/banks/${bankId}/questions`);
-        const opts = questions.map(q => `<option value='${JSON.stringify(q).replace(/'/g, "&#39;")}'>#${q.question_number} - ${q.category} - ${q.description.substring(0, 60)}...</option>`).join('');
-        document.getElementById('test-question-select').innerHTML = '<option value="">Select a question...</option>' + opts;
-    } catch (e) { showToast(e.message, 'error'); }
+function populateTestSelect() {
+    const opts = allQuestions.map(q => `<option value='${JSON.stringify(q).replace(/'/g, "&#39;")}'>#${q.question_number} - ${q.category} - ${q.description.substring(0, 60)}...</option>`).join('');
+    document.getElementById('test-question-select').innerHTML = '<option value="">Select a question...</option>' + opts;
 }
 
 function showTestQuestion() {
@@ -530,9 +588,8 @@ function showTestQuestion() {
     currentTestQuestion = q;
     document.getElementById('test-area').classList.remove('d-none');
     document.getElementById('test-q-title').textContent = `Question #${q.question_number}`;
-    const badge = document.getElementById('test-q-badge');
-    badge.textContent = q.category;
-    badge.className = 'badge bg-primary me-1';
+    document.getElementById('test-q-badge').textContent = q.category;
+    document.getElementById('test-q-badge').className = 'badge bg-primary me-1';
     const diff = document.getElementById('test-q-diff');
     diff.textContent = q.difficulty;
     diff.className = `badge ${q.difficulty === 'Easy' ? 'badge-easy' : q.difficulty === 'Moderate' ? 'badge-moderate' : 'badge-hard'}`;
@@ -541,15 +598,12 @@ function showTestQuestion() {
     document.getElementById('test-hint').classList.add('d-none');
     document.getElementById('test-answer').value = '';
 
-    // Multiple choice options
     const mcDiv = document.getElementById('test-mc-options');
     if (q.category === 'MultipleChoice' && q.options) {
         mcDiv.classList.remove('d-none');
-        mcDiv.innerHTML = q.options.map((o, i) => `
-            <div class="form-check">
-                <input class="form-check-input" type="radio" name="mc-answer" id="mc-${i}" value="${o}">
-                <label class="form-check-label" for="mc-${i}">${o}</label>
-            </div>`).join('');
+        mcDiv.innerHTML = q.options.map((o, i) => `<div class="form-check">
+            <input class="form-check-input" type="radio" name="mc-answer" id="mc-${i}" value="${o}">
+            <label class="form-check-label" for="mc-${i}">${o}</label></div>`).join('');
         document.getElementById('test-text-input').classList.add('d-none');
     } else {
         mcDiv.classList.add('d-none');
@@ -559,7 +613,6 @@ function showTestQuestion() {
 
 async function submitTestAnswer() {
     if (!currentTestQuestion) return;
-    const bankId = document.getElementById('test-bank-select').value;
     let answer;
     if (currentTestQuestion.category === 'MultipleChoice') {
         const checked = document.querySelector('input[name="mc-answer"]:checked');
@@ -570,7 +623,7 @@ async function submitTestAnswer() {
         if (!answer) return showToast('Enter an answer', 'warning');
     }
     try {
-        const result = await apiCall(`${API}/api/banks/${bankId}/questions/${currentTestQuestion.id}/answer`, {
+        const result = await apiCall(`${API}/api/questions/${currentTestQuestion.id}/answer`, {
             method: 'POST', body: JSON.stringify({ answer })
         });
         const div = document.getElementById('test-result');
@@ -588,9 +641,8 @@ async function submitTestAnswer() {
 
 async function getTestHint() {
     if (!currentTestQuestion) return;
-    const bankId = document.getElementById('test-bank-select').value;
     try {
-        const hint = await apiCall(`${API}/api/banks/${bankId}/questions/${currentTestQuestion.id}/hint`);
+        const hint = await apiCall(`${API}/api/questions/${currentTestQuestion.id}/hint`);
         const div = document.getElementById('test-hint');
         div.classList.remove('d-none');
         let html = `<div class="alert alert-warning"><strong>Hint:</strong> ${hint.hint || 'No hint available'}`;
@@ -599,14 +651,10 @@ async function getTestHint() {
         if (hint.sample_output) html += `<br>Expected Output: <code>${hint.sample_output}</code>`;
         html += '</div>';
         div.innerHTML = html;
-        // Update MC options if reduced
         if (hint.reduced_options && currentTestQuestion.category === 'MultipleChoice') {
-            const mcDiv = document.getElementById('test-mc-options');
-            mcDiv.innerHTML = hint.reduced_options.map((o, i) => `
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="mc-answer" id="mc-${i}" value="${o}">
-                    <label class="form-check-label" for="mc-${i}">${o}</label>
-                </div>`).join('');
+            document.getElementById('test-mc-options').innerHTML = hint.reduced_options.map((o, i) => `<div class="form-check">
+                <input class="form-check-input" type="radio" name="mc-answer" id="mc-${i}" value="${o}">
+                <label class="form-check-label" for="mc-${i}">${o}</label></div>`).join('');
         }
     } catch (e) { showToast(e.message, 'error'); }
 }
@@ -615,47 +663,39 @@ async function getTestHint() {
 async function loadConfig() {
     try {
         const configs = await apiCall(`${API}/api/config`);
-        const html = configs.map(c => `
-            <div class="card">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${c.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>
-                        <br><small class="text-muted">${c.description || ''}</small>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="cfg-${c.key}"
-                            ${c.value === 'true' ? 'checked' : ''}
-                            onchange="updateConfig('${c.key}', this.checked)">
-                    </div>
+        document.getElementById('config-list').innerHTML = configs.map(c => `
+            <div class="card"><div class="card-body d-flex justify-content-between align-items-center">
+                <div><strong>${c.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>
+                <br><small class="text-muted">${c.description || ''}</small></div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="cfg-${c.key}" ${c.value === 'true' ? 'checked' : ''} onchange="updateConfig('${c.key}', this.checked)">
                 </div>
-            </div>`).join('');
-        document.getElementById('config-list').innerHTML = html;
+            </div></div>`).join('');
     } catch (e) { showToast(e.message, 'error'); }
 }
 
 async function updateConfig(key, checked) {
     try {
-        await apiCall(`${API}/api/config/${key}`, {
-            method: 'PUT', body: JSON.stringify({ value: checked ? 'true' : 'false' })
-        });
+        await apiCall(`${API}/api/config/${key}`, { method: 'PUT', body: JSON.stringify({ value: checked ? 'true' : 'false' }) });
         showToast('Configuration updated');
     } catch (e) { showToast(e.message, 'error'); }
 }
 
 // --- API Examples ---
 function renderApiExamples() {
-    const baseUrl = window.location.origin;
+    const u = window.location.origin;
     const examples = [
-        { title: 'Get JWT Token', cmd: `curl -X POST ${baseUrl}/api/auth/token` },
-        { title: 'List Question Banks', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${baseUrl}/api/banks` },
-        { title: 'Create Question Bank', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"name":"Python"}' ${baseUrl}/api/banks` },
-        { title: 'List Questions', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${baseUrl}/api/banks/1/questions` },
-        { title: 'Create a General Knowledge Question', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"category":"General","difficulty":"Easy","description":"What is the capital of France?","correct_answer":"Paris","hint":"City of Light"}' ${baseUrl}/api/banks/1/questions` },
-        { title: 'Create a Multiple Choice Question', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"category":"MultipleChoice","difficulty":"Easy","description":"Which planet is closest to the Sun?","correct_answer":"Mercury","options":["Venus","Mercury","Mars","Jupiter"],"hint":"Smallest planet"}' ${baseUrl}/api/banks/1/questions` },
-        { title: 'Create a Coding Question', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"category":"Coding","difficulty":"Easy","description":"Given sets s1 and s2, write code so result equals the difference of s1 to s2.","correct_answer":"result = s1 - s2","hint":"Use set difference","code_sample_input":"{\\\"s1\\\": {5,6,7,8,9}, \\\"s2\\\": {8,9}}","code_sample_output":"{5, 6, 7}","code_hidden_input":"{\\\"s1\\\": {40,10,20,30}, \\\"s2\\\": {40,50,30}}","code_hidden_output":"{10, 20}"}' ${baseUrl}/api/banks/1/questions` },
-        { title: 'Submit Answer', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"answer":"Paris"}' ${baseUrl}/api/banks/1/questions/1/answer` },
-        { title: 'Get Hint', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${baseUrl}/api/banks/1/questions/1/hint` },
-        { title: 'Export Questions', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${baseUrl}/api/banks/1/questions/export` },
+        { title: 'Get JWT Token', cmd: `curl -X POST ${u}/api/auth/token` },
+        { title: 'List All Questions', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${u}/api/questions` },
+        { title: 'Create a Question', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"category":"General","difficulty":"Easy","description":"What is the capital of France?","correct_answer":"Paris","hint":"City of Light"}' ${u}/api/questions` },
+        { title: 'List Question Banks', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${u}/api/banks` },
+        { title: 'Create Question Bank', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"name":"Python"}' ${u}/api/banks` },
+        { title: 'Assign Questions to Bank', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"question_ids":[1,2,3]}' ${u}/api/banks/1/questions` },
+        { title: 'List Bank Questions', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${u}/api/banks/1/questions` },
+        { title: 'Remove Questions from Bank', cmd: `curl -X DELETE -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"question_ids":[1]}' ${u}/api/banks/1/questions` },
+        { title: 'Submit Answer', cmd: `curl -X POST -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" -d '{"answer":"Paris"}' ${u}/api/questions/1/answer` },
+        { title: 'Get Hint', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${u}/api/questions/1/hint` },
+        { title: 'Export All Questions', cmd: `curl -H "Authorization: Bearer <TOKEN>" ${u}/api/questions/export` },
     ];
     document.getElementById('api-examples-content').innerHTML = examples.map(e =>
         `<div class="card"><div class="card-body"><strong>${e.title}</strong><div id="api-example">${e.cmd}</div></div></div>`
@@ -665,6 +705,7 @@ function renderApiExamples() {
 // --- Init ---
 document.addEventListener('DOMContentLoaded', async () => {
     await fetchToken();
+    loadQuestions();
     loadBanks();
     loadConfig();
     renderApiExamples();
