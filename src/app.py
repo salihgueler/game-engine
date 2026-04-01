@@ -1,4 +1,5 @@
 """Flask application factory."""
+import logging
 import os
 
 from flasgger import Swagger
@@ -14,6 +15,13 @@ from src.services.auth import add_refresh_header
 def create_app(config_name=None):
     if config_name is None:
         config_name = os.environ.get("FLASK_ENV", "development")
+
+    # Configure application logging
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
 
     app = Flask(__name__, static_folder="static", template_folder="templates")
     app.config.from_object(config_by_name[config_name])
