@@ -147,6 +147,7 @@ def _run_java(image: str, code: str, stdin_data: str) -> dict:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Resolve symlinks for Finch VM volume mounts (macOS /var -> /private/var)
         real_tmpdir = os.path.realpath(tmpdir)
+        os.chmod(real_tmpdir, 0o755)
         src_path = os.path.join(real_tmpdir, "Solution.java")
         with open(src_path, "w") as f:
             f.write(code)
@@ -171,6 +172,7 @@ def _run_typescript(image: str, code: str, stdin_data: str) -> dict:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Resolve symlinks for Finch VM volume mounts (macOS /var -> /private/var)
         real_tmpdir = os.path.realpath(tmpdir)
+        os.chmod(real_tmpdir, 0o755)
         src_path = os.path.join(real_tmpdir, "solution.ts")
         with open(src_path, "w") as f:
             f.write(code)
