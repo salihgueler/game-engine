@@ -398,6 +398,31 @@ def delete_question(question_id):
     return jsonify({"message": "Deleted"})
 
 
+@question_bp.route("", methods=["DELETE"])
+@token_required
+def delete_all_questions():
+    """Delete all questions. This also removes all bank assignments.
+    ---
+    tags:
+      - Questions
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: All questions deleted
+        schema:
+          type: object
+          properties:
+            deleted:
+              type: integer
+    """
+    count = Question.query.count()
+    db.session.execute(db.text("DELETE FROM question_bank_questions"))
+    Question.query.delete()
+    db.session.commit()
+    return jsonify({"deleted": count})
+
+
 # --- Evaluation, Hints, Export/Import ---
 
 @question_bp.route("/<int:question_id>/answer", methods=["POST"])
