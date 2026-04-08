@@ -47,7 +47,7 @@ class Event(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    games = db.relationship("Game", backref="event", lazy=True)
+    games = db.relationship("Game", backref="event", lazy=True, cascade="all, delete-orphan")
     question_bank = db.relationship("QuestionBank", backref="events", lazy=True)
 
 
@@ -72,7 +72,7 @@ class QuestionBank(db.Model):
 
     # Many-to-many: a bank has many questions, a question can be in many banks
     questions = db.relationship("Question", secondary=question_bank_questions, backref=db.backref("question_banks", lazy=True), lazy=True)
-    games = db.relationship("Game", backref="question_bank", lazy=True)
+    games = db.relationship("Game", backref="question_bank", lazy=True, cascade="all, delete-orphan")
 
 
 class Question(db.Model):

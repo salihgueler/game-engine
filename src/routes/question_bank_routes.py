@@ -241,6 +241,11 @@ def delete_bank(bank_id):
         description: Question bank not found
     """
     bank = QuestionBank.query.get_or_404(bank_id)
+
+    # Delete events that reference this bank first
+    for event in list(bank.events):
+        db.session.delete(event)
+
     db.session.delete(bank)
     db.session.commit()
     return jsonify({"message": "Deleted"})
