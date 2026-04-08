@@ -78,6 +78,7 @@ class EventCreate(BaseModel):
     theme: str
     question_bank_id: int
     custom_welcome_text: Optional[str] = None
+    survey_link: Optional[str] = None
 
 
 class EventUpdate(BaseModel):
@@ -85,6 +86,7 @@ class EventUpdate(BaseModel):
     theme: Optional[str] = None
     question_bank_id: Optional[int] = None
     custom_welcome_text: Optional[str] = None
+    survey_link: Optional[str] = None
 
 
 class PlayerCreate(BaseModel):

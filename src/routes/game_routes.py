@@ -90,6 +90,7 @@ def join_event():
         "theme": event.theme,
         "custom_welcome_text": event.custom_welcome_text,
         "question_bank_name": event.question_bank.name if event.question_bank else None,
+        "survey_link": event.survey_link,
     })
 
 
