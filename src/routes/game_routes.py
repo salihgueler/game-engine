@@ -459,3 +459,82 @@ def get_player_events(player_id):
             })
 
     return jsonify(results)
+
+
+# --- Leaderboard APIs ---
+
+@game_bp.route("/leaderboard/<int:event_id>", methods=["GET"])
+def event_leaderboard(event_id):
+    """Get the top 10 leaderboard for a specific event.
+    ---
+    tags:
+      - Leaderboard
+    parameters:
+      - name: event_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Top 10 players for this event
+      404:
+        description: Event not found
+    """
+    event = Event.query.get_or_404(event_id)
+
+    # Find all completed game_players for games in this event
+    results = (
+        db.session.query(GamePlayer, Player, Game)
+        .join(Game, GamePlayer.game_id == Game.id)
+        .join(Player, GamePlayer.player_id == Player.id)
+        .filter(Game.event_id == event_id)
+        .filter(GamePlayer.completed_at.isnot(None))
+        .order_by(GamePlayer.score.desc(), GamePlayer.time_taken_seconds.asc())
+        .limit(10)
+        .all()
+    )
+
+    return jsonify([
+        {
+            "player_name": player.name,
+            "avatar": player.avatar,
+            "score": gp.score,
+            "time_taken_seconds": gp.time_taken_seconds,
+            "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
+        }
+        for gp, player, game in results
+    ])
+
+
+@game_bp.route("/leaderboard", methods=["GET"])
+def global_leaderboard():
+    """Get the top 10 global leaderboard across all events.
+    ---
+    tags:
+      - Leaderboard
+    responses:
+      200:
+        description: Top 10 players across all events
+    """
+    results = (
+        db.session.query(GamePlayer, Player, Game, Event)
+        .join(Game, GamePlayer.game_id == Game.id)
+        .join(Player, GamePlayer.player_id == Player.id)
+        .join(Event, Game.event_id == Event.id)
+        .filter(GamePlayer.completed_at.isnot(None))
+        .order_by(GamePlayer.score.desc(), GamePlayer.time_taken_seconds.asc())
+        .limit(10)
+        .all()
+    )
+
+    return jsonify([
+        {
+            "player_name": player.name,
+            "avatar": player.avatar,
+            "score": gp.score,
+            "time_taken_seconds": gp.time_taken_seconds,
+            "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
+            "event_name": event.name,
+        }
+        for gp, player, game, event in results
+    ])
