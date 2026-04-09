@@ -21,6 +21,7 @@ def _serialize_event(event):
         "theme": event.theme,
         "custom_welcome_text": event.custom_welcome_text,
         "survey_link": event.survey_link,
+        "code_expiry": event.code_expiry.isoformat() if event.code_expiry else None,
         "created_at": event.created_at.isoformat(),
         "updated_at": event.updated_at.isoformat(),
     }
@@ -134,6 +135,7 @@ def create_event():
         question_bank_id=data.question_bank_id,
         custom_welcome_text=data.custom_welcome_text,
         survey_link=data.survey_link,
+        code_expiry=data.code_expiry,
     )
     db.session.add(event)
     db.session.commit()
@@ -223,6 +225,8 @@ def update_event(event_id):
         event.custom_welcome_text = data.custom_welcome_text
     if data.survey_link is not None:
         event.survey_link = data.survey_link
+    if data.code_expiry is not None:
+        event.code_expiry = data.code_expiry
 
     db.session.commit()
     return jsonify(_serialize_event(event))

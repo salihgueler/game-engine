@@ -44,6 +44,7 @@ class Event(db.Model):
     theme = db.Column(db.String(128), nullable=False)
     custom_welcome_text = db.Column(db.Text, nullable=True)
     survey_link = db.Column(db.Text, nullable=True)
+    code_expiry = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

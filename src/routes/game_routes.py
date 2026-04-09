@@ -84,6 +84,9 @@ def join_event():
     if not event:
         return jsonify({"error": "Invalid access code"}), 404
 
+    if event.code_expiry and datetime.now(timezone.utc) > event.code_expiry:
+        return jsonify({"error": "This event code has expired"}), 410
+
     return jsonify({
         "event_id": event.id,
         "event_name": event.name,

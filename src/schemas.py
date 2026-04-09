@@ -1,5 +1,6 @@
 """Pydantic schemas for request/response validation."""
 import json
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, field_validator
@@ -79,6 +80,7 @@ class EventCreate(BaseModel):
     question_bank_id: int
     custom_welcome_text: Optional[str] = None
     survey_link: Optional[str] = None
+    code_expiry: Optional[datetime] = None
 
 
 class EventUpdate(BaseModel):
@@ -87,6 +89,7 @@ class EventUpdate(BaseModel):
     question_bank_id: Optional[int] = None
     custom_welcome_text: Optional[str] = None
     survey_link: Optional[str] = None
+    code_expiry: Optional[datetime] = None
 
 
 class PlayerCreate(BaseModel):
