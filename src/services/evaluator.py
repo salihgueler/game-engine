@@ -280,7 +280,7 @@ Object.assign(globalThis, inputs);
 
 {player_code}
 
-console.log(result);
+console.log(typeof result === "object" ? JSON.stringify(result) : result);
 """
     else:
         return player_code
