@@ -570,7 +570,7 @@ def event_leaderboard(event_id):
         required: true
     responses:
       200:
-        description: Top 10 players for this event
+        description: Event info and top 10 players
       404:
         description: Event not found
     """
@@ -588,16 +588,23 @@ def event_leaderboard(event_id):
         .all()
     )
 
-    return jsonify([
-        {
-            "player_name": player.name,
-            "avatar": player.avatar,
-            "score": gp.score,
-            "time_taken_seconds": gp.time_taken_seconds,
-            "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
-        }
-        for gp, player, game in results
-    ])
+    return jsonify({
+        "event": {
+            "id": event.id,
+            "name": event.name,
+            "access_code": event.access_code,
+        },
+        "leaderboard": [
+            {
+                "player_name": player.name,
+                "avatar": player.avatar,
+                "score": gp.score,
+                "time_taken_seconds": gp.time_taken_seconds,
+                "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
+            }
+            for gp, player, game in results
+        ],
+    })
 
 
 @game_bp.route("/leaderboard", methods=["GET"])
