@@ -424,7 +424,9 @@ def end_game(game_id):
 
     now = datetime.now(timezone.utc)
     gp.score = score
-    gp.time_taken_seconds = int((now - gp.joined_at).total_seconds())
+    # Ensure joined_at is timezone-aware for subtraction (SQLite stores naive datetimes)
+    joined_at = gp.joined_at if gp.joined_at.tzinfo else gp.joined_at.replace(tzinfo=timezone.utc)
+    gp.time_taken_seconds = int((now - joined_at).total_seconds())
     gp.completed_at = now
     db.session.commit()
 
@@ -639,3 +641,32 @@ def global_leaderboard():
         }
         for gp, player, game, event in results
     ])
+
+
+# --- Player-facing config ---
+
+# Config keys safe to expose to players (no secrets or admin-only settings)
+_PLAYER_VISIBLE_CONFIG_KEYS = {
+    GlobalConfig.AUTO_PASS_ALL,
+    GlobalConfig.SHOW_CORRECT_ON_WRONG,
+}
+
+
+@game_bp.route("/config", methods=["GET"])
+def player_config():
+    """Get player-visible configuration settings (no auth required).
+    ---
+    tags:
+      - Game Flow
+    responses:
+      200:
+        description: Player-visible configuration key-value pairs
+        schema:
+          type: object
+          additionalProperties:
+            type: string
+    """
+    configs = GlobalConfig.query.filter(
+        GlobalConfig.key.in_(_PLAYER_VISIBLE_CONFIG_KEYS)
+    ).all()
+    return jsonify({c.key: c.value for c in configs})
