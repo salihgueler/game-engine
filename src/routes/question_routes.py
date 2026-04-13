@@ -4,7 +4,7 @@ import json
 from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
-from src.extensions import db
+from src.extensions import db, limiter
 from src.models.models import Question, QuestionCategory, QuestionDifficulty, GamePlayer, GamePlayerAnswer
 from src.schemas import AnswerSubmit, QuestionCreate, QuestionImport, QuestionUpdate
 from src.services.auth import cognito_token_required, player_token_required, _either_token_required
@@ -470,6 +470,7 @@ def delete_all_questions():
 
 @question_bp.route("/<int:question_id>/answer", methods=["POST"])
 @_either_token_required
+@limiter.limit("15 per minute")
 def submit_answer(question_id):
     """Submit an answer for evaluation. The evaluation strategy depends on the question category (MultipleChoice, General, or Coding).
     Optionally accepts game_id and player_id to record the answer for server-side scoring.

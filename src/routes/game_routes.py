@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
-from src.extensions import db
+from src.extensions import db, limiter
 from src.models.models import Event, Game, GamePlayer, GamePlayerAnswer, GameQuestion, Player, QuestionDifficulty
 from src.schemas import GameEnd, PlayerCreate
 from src.services.auth import generate_player_token, player_session_required
@@ -40,6 +40,7 @@ def _serialize_game_player(gp):
 # --- Join event via access code ---
 
 @game_bp.route("/join", methods=["POST"])
+@limiter.limit("10 per minute")
 def join_event():
     """Join an event using its access code. Returns the event details and welcome text.
     ---

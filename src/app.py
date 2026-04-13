@@ -7,7 +7,7 @@ from flask import Flask
 from flask_cors import CORS
 
 from src.config import config_by_name
-from src.extensions import db
+from src.extensions import db, limiter
 from src.models.models import GlobalConfig
 
 
@@ -27,6 +27,7 @@ def create_app(config_name=None):
 
     # Extensions
     db.init_app(app)
+    limiter.init_app(app)
     CORS(app, expose_headers=["X-Refreshed-Token"])
 
     # Swagger — only enabled in development
