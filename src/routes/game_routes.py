@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from src.extensions import db
 from src.models.models import Event, Game, GamePlayer, GamePlayerAnswer, GameQuestion, Player, QuestionDifficulty
 from src.schemas import GameEnd, PlayerCreate
+from src.services.auth import generate_player_token, player_session_required
 
 game_bp = Blueprint("games", __name__, url_prefix="/api/game")
 
@@ -167,12 +168,19 @@ def create_player():
     )
     db.session.add(player)
     db.session.commit()
-    return jsonify(_serialize_player(player)), 201
+
+    # Issue a player session token bound to this player_id
+    session_token = generate_player_token(player_id=player.id)
+    result = _serialize_player(player)
+    result["session_token"] = session_token
+
+    return jsonify(result), 201
 
 
 # --- Start a new game ---
 
 @game_bp.route("/start", methods=["POST"])
+@player_session_required
 def start_game():
     """Start a new game for a player within an event. Selects questions from the event's question bank and creates a GamePlayer entry with score 0.
     ---
@@ -231,6 +239,10 @@ def start_game():
     if not event_id or not player_id:
         return jsonify({"error": "event_id and player_id are required"}), 400
 
+    # Verify player_id matches the session token
+    if player_id != request.token_player_id:
+        return jsonify({"error": "player_id does not match session"}), 403
+
     event = Event.query.get(event_id)
     if not event:
         return jsonify({"error": "Event not found"}), 404
@@ -277,6 +289,7 @@ def start_game():
 # --- End a game ---
 
 @game_bp.route("/<int:game_id>/end", methods=["POST"])
+@player_session_required
 def end_game(game_id):
     """End a game for a player. Score is computed server-side from recorded answers.
     ---
@@ -324,6 +337,10 @@ def end_game(game_id):
 
     if not player_id:
         return jsonify({"error": "player_id is required"}), 400
+
+    # Verify player_id matches the session token
+    if player_id != request.token_player_id:
+        return jsonify({"error": "player_id does not match session"}), 403
 
     game = Game.query.get(game_id)
     if not game:
@@ -395,11 +412,14 @@ def _compute_score(gp):
 # --- Player GET APIs ---
 
 @game_bp.route("/players/<int:player_id>", methods=["GET"])
+@player_session_required
 def get_player(player_id):
     """Get a player profile by ID.
     ---
     tags:
       - Game Flow
+    security:
+      - Bearer: []
     parameters:
       - name: player_id
         in: path
@@ -409,36 +429,27 @@ def get_player(player_id):
     responses:
       200:
         description: Player profile
-        schema:
-          type: object
-          properties:
-            id:
-              type: integer
-            name:
-              type: string
-            avatar:
-              type: string
-            preferred_coding_language:
-              type: string
-            difficulty:
-              type: string
-              enum: [Easy, Moderate, Hard]
-            created_at:
-              type: string
-              format: date-time
+      403:
+        description: Player ID does not match session
       404:
         description: Player not found
     """
+    if player_id != request.token_player_id:
+        return jsonify({"error": "player_id does not match session"}), 403
+
     player = Player.query.get_or_404(player_id)
     return jsonify(_serialize_player(player))
 
 
 @game_bp.route("/players/<int:player_id>/events", methods=["GET"])
+@player_session_required
 def get_player_events(player_id):
     """Get all events a player has participated in, with their game results.
     ---
     tags:
       - Game Flow
+    security:
+      - Bearer: []
     parameters:
       - name: player_id
         in: path
@@ -448,32 +459,14 @@ def get_player_events(player_id):
     responses:
       200:
         description: List of events the player has participated in
-        schema:
-          type: array
-          items:
-            type: object
-            properties:
-              event_id:
-                type: integer
-              event_name:
-                type: string
-              theme:
-                type: string
-              game_id:
-                type: integer
-              score:
-                type: integer
-              time_taken_seconds:
-                type: integer
-              completed_at:
-                type: string
-                format: date-time
-              joined_at:
-                type: string
-                format: date-time
+      403:
+        description: Player ID does not match session
       404:
         description: Player not found
     """
+    if player_id != request.token_player_id:
+        return jsonify({"error": "player_id does not match session"}), 403
+
     player = Player.query.get_or_404(player_id)
     game_players = GamePlayer.query.filter_by(player_id=player.id).all()
 

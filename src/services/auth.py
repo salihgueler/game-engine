@@ -141,8 +141,11 @@ def cognito_token_required(f):
 # session binding later, but for now this preserves backward compatibility)
 # ---------------------------------------------------------------------------
 
-def generate_player_token():
-    """Generate a simple player-facing JWT for game-play API access."""
+def generate_player_token(player_id=None):
+    """Generate a player-facing JWT for game-play API access.
+
+    If player_id is provided, it's embedded in the token for session binding.
+    """
     secret = current_app.config.get("PLAYER_TOKEN_SECRET")
     if not secret:
         raise RuntimeError("PLAYER_TOKEN_SECRET is not configured")
@@ -152,6 +155,8 @@ def generate_player_token():
         "exp": now + timedelta(hours=24),
         "sub": "quest-player",
     }
+    if player_id is not None:
+        payload["player_id"] = player_id
     return jwt.encode(payload, secret, algorithm="HS256")
 
 
@@ -193,6 +198,8 @@ def _either_token_required(f):
 
         payload = decode_player_token(token)
         if payload is not None:
+            if "player_id" in payload:
+                request.token_player_id = payload["player_id"]
             return f(*args, **kwargs)
 
         return jsonify({"error": "Token is invalid or expired"}), 401
@@ -203,7 +210,6 @@ def player_token_required(f):
     """Decorator to require a valid player token for game-play API endpoints."""
     @functools.wraps(f)
     def decorated(*args, **kwargs):
-        # Allow CORS preflight requests through without auth
         if request.method == "OPTIONS":
             return f(*args, **kwargs)
 
@@ -221,6 +227,44 @@ def player_token_required(f):
         if payload is None:
             return jsonify({"error": "Token is invalid or expired"}), 401
 
+        # Store player_id from token on request if present
+        if "player_id" in payload:
+            request.token_player_id = payload["player_id"]
+
+        return f(*args, **kwargs)
+    return decorated
+
+
+def player_session_required(f):
+    """Decorator requiring a player token with player_id bound in it.
+
+    Sets request.token_player_id for use by the endpoint.
+    Rejects requests where the token has no player_id.
+    """
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if request.method == "OPTIONS":
+            return f(*args, **kwargs)
+
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+        elif auth_header:
+            token = auth_header
+
+        if not token:
+            return jsonify({"error": "Token is missing"}), 401
+
+        payload = decode_player_token(token)
+        if payload is None:
+            return jsonify({"error": "Token is invalid or expired"}), 401
+
+        player_id = payload.get("player_id")
+        if player_id is None:
+            return jsonify({"error": "Player session token required"}), 403
+
+        request.token_player_id = player_id
         return f(*args, **kwargs)
     return decorated
 
