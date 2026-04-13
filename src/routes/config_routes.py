@@ -1,4 +1,6 @@
-"""Global configuration routes."""
+"""Global configuration routes with audit logging."""
+import logging
+
 from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
@@ -7,7 +9,14 @@ from src.models.models import GlobalConfig
 from src.schemas import ConfigUpdate
 from src.services.auth import cognito_token_required
 
+logger = logging.getLogger(__name__)
+
 config_bp = Blueprint("config", __name__, url_prefix="/api/config")
+
+# Keys that require explicit confirmation to change
+_DANGEROUS_KEYS = {
+    GlobalConfig.AUTO_PASS_ALL,
+}
 
 
 @config_bp.route("", methods=["GET"])
@@ -33,7 +42,7 @@ def get_all_config():
 @config_bp.route("/<string:key>", methods=["PUT"])
 @cognito_token_required
 def update_config(key):
-    """Update a configuration setting.
+    """Update a configuration setting. Dangerous keys require confirm=true.
     ---
     tags:
       - Configuration
@@ -51,12 +60,23 @@ def update_config(key):
           properties:
             value:
               type: string
+            confirm:
+              type: boolean
+              description: Required for dangerous config keys
     responses:
       200:
         description: Configuration updated
+      400:
+        description: Validation error
+      404:
+        description: Configuration key not found
+      409:
+        description: Confirmation required for dangerous key
     """
+    body = request.get_json() or {}
+
     try:
-        data = ConfigUpdate(**request.get_json())
+        data = ConfigUpdate(**body)
     except ValidationError as e:
         return jsonify({"error": e.errors()}), 400
 
@@ -64,6 +84,22 @@ def update_config(key):
     if not cfg:
         return jsonify({"error": "Configuration key not found"}), 404
 
+    # Require explicit confirmation for dangerous keys
+    if key in _DANGEROUS_KEYS and not body.get("confirm"):
+        return jsonify({
+            "error": f"Changing '{key}' is a dangerous operation. Send confirm=true to proceed.",
+            "requires_confirmation": True,
+        }), 409
+
+    old_value = cfg.value
     cfg.value = data.value
     db.session.commit()
+
+    # Audit log
+    admin_user = getattr(request, "cognito_user", "unknown")
+    logger.warning(
+        "CONFIG_CHANGE: user=%s key=%s old_value=%s new_value=%s",
+        admin_user, key, old_value, data.value,
+    )
+
     return jsonify({"key": cfg.key, "value": cfg.value, "description": cfg.description})
