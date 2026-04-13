@@ -648,11 +648,11 @@ def global_leaderboard():
 # Config keys safe to expose to players (no secrets or admin-only settings)
 _PLAYER_VISIBLE_CONFIG_KEYS = {
     GlobalConfig.AUTO_PASS_ALL,
-    GlobalConfig.SHOW_CORRECT_ON_WRONG,
 }
 
 
 @game_bp.route("/config", methods=["GET"])
+@limiter.limit("10 per minute")
 def player_config():
     """Get player-visible configuration settings (no auth required).
     ---
