@@ -85,12 +85,19 @@ def _decode_cognito_token(token: str) -> dict | None:
             algorithms=["RS256"],
             issuer=issuer,
             audience=client_id,
-            options={"require": ["exp", "iss", "sub", "aud"]},
+            options={
+                "require": ["exp", "iss", "sub"],
+                "verify_aud": True,
+            },
+            leeway=timedelta(minutes=2),
         )
         return payload
 
     except jwt.ExpiredSignatureError:
         logger.info("Cognito token expired")
+        return None
+    except jwt.InvalidAudienceError:
+        logger.warning("Cognito token audience mismatch, expected %s", client_id)
         return None
     except jwt.InvalidTokenError as e:
         logger.warning("Invalid Cognito token: %s", e)
