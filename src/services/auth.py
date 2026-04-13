@@ -111,6 +111,10 @@ def cognito_token_required(f):
     """Decorator to require a valid Cognito JWT for admin API endpoints."""
     @functools.wraps(f)
     def decorated(*args, **kwargs):
+        # Allow CORS preflight requests through without auth
+        if request.method == "OPTIONS":
+            return f(*args, **kwargs)
+
         auth_header = request.headers.get("Authorization", "")
         token = None
         if auth_header.startswith("Bearer "):
@@ -168,6 +172,10 @@ def player_token_required(f):
     """Decorator to require a valid player token for game-play API endpoints."""
     @functools.wraps(f)
     def decorated(*args, **kwargs):
+        # Allow CORS preflight requests through without auth
+        if request.method == "OPTIONS":
+            return f(*args, **kwargs)
+
         auth_header = request.headers.get("Authorization", "")
         token = None
         if auth_header.startswith("Bearer "):
