@@ -54,6 +54,7 @@ def create_app(config_name=None):
     from src.routes.game_routes import game_bp
     from src.routes.question_bank_routes import bank_bp
     from src.routes.question_routes import question_bp
+    from src.routes.leaderboard_routes import leaderboard_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(audit_bp)
@@ -62,6 +63,7 @@ def create_app(config_name=None):
     app.register_blueprint(game_bp)
     app.register_blueprint(bank_bp)
     app.register_blueprint(question_bp)
+    app.register_blueprint(leaderboard_bp)
 
     # Create tables and seed config
     with app.app_context():
