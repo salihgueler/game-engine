@@ -79,6 +79,7 @@ def _seed_config():
     defaults = [
         (GlobalConfig.SHOW_CORRECT_ON_WRONG, "false", "Show the correct answer when a wrong answer is submitted"),
         (GlobalConfig.AUTO_PASS_ALL, "false", "Automatically pass all questions (dev/debug mode)"),
+        (GlobalConfig.REQUIRE_BUILDER_ALIAS, "true", "Require a valid builder.aws.com alias as the player username"),
     ]
     for key, value, desc in defaults:
         if not GlobalConfig.query.filter_by(key=key).first():

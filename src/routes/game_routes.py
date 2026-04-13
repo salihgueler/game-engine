@@ -2,13 +2,16 @@
 import random
 from datetime import datetime, timezone
 
+import requests as http_requests
 from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
 from src.extensions import db, limiter
-from src.models.models import Event, Game, GamePlayer, GamePlayerAnswer, GameQuestion, Player, QuestionDifficulty
+from src.models.models import Event, Game, GamePlayer, GamePlayerAnswer, GameQuestion, GlobalConfig, Player, QuestionDifficulty
 from src.schemas import GameEnd, PlayerCreate
 from src.services.auth import generate_player_token, player_session_required
+
+BUILDER_PROFILE_API = "https://api.builder.aws.com/ums/getProfileByAlias"
 
 game_bp = Blueprint("games", __name__, url_prefix="/api/game")
 
@@ -35,6 +38,68 @@ def _serialize_game_player(gp):
         "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
         "joined_at": gp.joined_at.isoformat(),
     }
+
+
+# --- Validate builder.aws.com alias ---
+
+@game_bp.route("/validate-builder-alias", methods=["POST"])
+@limiter.limit("15 per minute")
+def validate_builder_alias():
+    """Check whether an alias exists on builder.aws.com.
+    ---
+    tags:
+      - Game Flow
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - alias
+          properties:
+            alias:
+              type: string
+              description: The builder.aws.com alias (without the @ prefix)
+    responses:
+      200:
+        description: Alias validation result
+        schema:
+          type: object
+          properties:
+            valid:
+              type: boolean
+      400:
+        description: Missing alias
+    """
+    body = request.get_json() or {}
+    alias = body.get("alias", "").strip()
+    if not alias:
+        return jsonify({"error": "alias is required"}), 400
+
+    # Check if builder alias validation is enabled
+    cfg = GlobalConfig.query.filter_by(key=GlobalConfig.REQUIRE_BUILDER_ALIAS).first()
+    if not cfg or cfg.value.lower() != "true":
+        return jsonify({"valid": True, "enabled": False})
+
+    # Strip leading @ if the user included it
+    if alias.startswith("@"):
+        alias = alias[1:]
+
+    try:
+        resp = http_requests.post(
+            BUILDER_PROFILE_API,
+            json={"alias": alias},
+            headers={
+                "Content-Type": "application/json",
+                "builder-session-token": "dummy",
+            },
+            timeout=5,
+        )
+        return jsonify({"valid": resp.status_code == 200, "enabled": True})
+    except http_requests.RequestException:
+        # If the external service is unreachable, don't block the user
+        return jsonify({"valid": True, "enabled": True})
 
 
 # --- Join event via access code ---

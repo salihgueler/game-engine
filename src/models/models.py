@@ -171,6 +171,7 @@ class GlobalConfig(db.Model):
     # Default config keys
     SHOW_CORRECT_ON_WRONG = "show_correct_answer_on_wrong"
     AUTO_PASS_ALL = "auto_pass_all_questions"
+    REQUIRE_BUILDER_ALIAS = "require_builder_alias"
 
 
 class AuditLog(db.Model):
