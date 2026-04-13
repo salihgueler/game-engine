@@ -13,7 +13,8 @@ from src.services.evaluator import evaluate_coding, evaluate_general_knowledge, 
 question_bp = Blueprint("questions", __name__, url_prefix="/api/questions")
 
 
-def _serialize_question(q):
+def _serialize_question_admin(q):
+    """Full serialization for admin endpoints — includes correct answers and hidden test data."""
     data = {
         "id": q.id,
         "question_number": q.question_number,
@@ -42,6 +43,43 @@ def _serialize_question(q):
         data["code_hidden_input"] = q.code_hidden_input
         data["code_hidden_output"] = q.code_hidden_output
     return data
+
+
+def _serialize_question_player(q):
+    """Player-safe serialization — no correct answers, no hidden test cases."""
+    data = {
+        "id": q.id,
+        "question_number": q.question_number,
+        "category": q.category.value,
+        "difficulty": q.difficulty.value,
+        "description": q.description,
+        "hint": q.hint,
+        "question_banks": [{"id": b.id, "name": b.name} for b in q.question_banks],
+        "created_at": q.created_at.isoformat(),
+        "updated_at": q.updated_at.isoformat(),
+    }
+    if q.category == QuestionCategory.MultipleChoice and q.options:
+        try:
+            data["options"] = json.loads(q.options)
+        except json.JSONDecodeError:
+            data["options"] = []
+    if q.category == QuestionCategory.Coding:
+        data["code_programming_language"] = q.code_programming_language
+        data["code_sample_input"] = q.code_sample_input
+        data["code_sample_output"] = q.code_sample_output
+    return data
+
+
+def _is_admin_request():
+    """Check if the current request was authenticated with a Cognito admin token."""
+    return hasattr(request, "cognito_user") and request.cognito_user is not None
+
+
+def _serialize_question(q):
+    """Auto-select serializer based on whether the request is from an admin."""
+    if _is_admin_request():
+        return _serialize_question_admin(q)
+    return _serialize_question_player(q)
 
 
 def _next_question_number():
