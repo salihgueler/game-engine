@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from src.extensions import db
 from src.models.models import Question, QuestionCategory, QuestionDifficulty
 from src.schemas import AnswerSubmit, QuestionCreate, QuestionImport, QuestionUpdate
-from src.services.auth import token_required
+from src.services.auth import cognito_token_required, player_token_required
 from src.services.evaluator import evaluate_coding, evaluate_general_knowledge, evaluate_multiple_choice
 
 question_bp = Blueprint("questions", __name__, url_prefix="/api/questions")
@@ -51,7 +51,7 @@ def _next_question_number():
 
 
 @question_bp.route("", methods=["GET"])
-@token_required
+@player_token_required
 def list_questions():
     """List all questions. Supports optional filtering by programming language and difficulty.
     ---
@@ -163,7 +163,7 @@ def list_questions():
 
 
 @question_bp.route("", methods=["POST"])
-@token_required
+@cognito_token_required
 def create_question():
     """Create a new standalone question. The question is not assigned to any bank. Use the bank assignment endpoint to add it to banks.
     ---
@@ -249,7 +249,7 @@ def create_question():
 
 
 @question_bp.route("/<int:question_id>", methods=["GET"])
-@token_required
+@player_token_required
 def get_question(question_id):
     """Get a question by ID. Response includes the list of banks this question belongs to.
     ---
@@ -276,7 +276,7 @@ def get_question(question_id):
 
 
 @question_bp.route("/<int:question_id>", methods=["PUT"])
-@token_required
+@cognito_token_required
 def update_question(question_id):
     """Update a question. Only provided fields are updated.
     ---
@@ -366,7 +366,7 @@ def update_question(question_id):
 
 
 @question_bp.route("/<int:question_id>", methods=["DELETE"])
-@token_required
+@cognito_token_required
 def delete_question(question_id):
     """Delete a question. This also removes it from all banks it was assigned to.
     ---
@@ -399,7 +399,7 @@ def delete_question(question_id):
 
 
 @question_bp.route("", methods=["DELETE"])
-@token_required
+@cognito_token_required
 def delete_all_questions():
     """Delete all questions. This also removes all bank assignments.
     ---
@@ -426,7 +426,7 @@ def delete_all_questions():
 # --- Evaluation, Hints, Export/Import ---
 
 @question_bp.route("/<int:question_id>/answer", methods=["POST"])
-@token_required
+@player_token_required
 def submit_answer(question_id):
     """Submit an answer for evaluation. The evaluation strategy depends on the question category (MultipleChoice, General, or Coding).
     ---
@@ -485,7 +485,7 @@ def submit_answer(question_id):
 
 
 @question_bp.route("/<int:question_id>/hint", methods=["GET"])
-@token_required
+@player_token_required
 def get_hint(question_id):
     """Get a hint for a question. Increments the times_hint_used counter. For MultipleChoice questions, also removes one incorrect option. For Coding questions, includes sample input/output.
     ---
@@ -548,7 +548,7 @@ def get_hint(question_id):
 
 
 @question_bp.route("/export", methods=["GET"])
-@token_required
+@cognito_token_required
 def export_questions():
     """Export all questions as JSON. Returns all questions regardless of bank assignment.
     ---
@@ -621,7 +621,7 @@ def export_questions():
 
 
 @question_bp.route("/import", methods=["POST"])
-@token_required
+@cognito_token_required
 def import_questions():
     """Import questions from JSON. Creates standalone questions that are not assigned to any bank. Use the bank assignment endpoint to add them to banks after import.
     ---

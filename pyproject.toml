@@ -12,6 +12,7 @@ dependencies = [
     "pyjwt>=2.9",
     "flasgger>=0.9",
     "gunicorn>=23.0",
+    "requests>=2.31",
     "strands-agents>=1.0",
     "strands-agents-tools>=0.2",
     "bedrock-agentcore>=1.0",

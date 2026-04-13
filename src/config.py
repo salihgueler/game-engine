@@ -4,10 +4,15 @@ from datetime import timedelta
 
 class Config:
     """Base configuration."""
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    JWT_EXPIRATION = timedelta(hours=24)
-    JWT_ALGORITHM = "HS256"
+
+    # Cognito settings for admin authentication
+    COGNITO_REGION = os.environ.get("COGNITO_REGION", "eu-central-1")
+    COGNITO_USER_POOL_ID = os.environ.get("COGNITO_USER_POOL_ID", "")
+    COGNITO_APP_CLIENT_ID = os.environ.get("COGNITO_APP_CLIENT_ID", "")
+
+    # Player token secret — used only for game-play API tokens (not admin)
+    PLAYER_TOKEN_SECRET = os.environ.get("PLAYER_TOKEN_SECRET", "")
 
     # Strands / Bedrock — credentials via AWS CLI profiles or IAM roles, never .env
     AWS_REGION = os.environ.get("AWS_REGION", "eu-west-1")
@@ -17,6 +22,8 @@ class Config:
 class DevelopmentConfig(Config):
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///quest_dev.db")
+    # In development, allow a fallback player token secret
+    PLAYER_TOKEN_SECRET = os.environ.get("PLAYER_TOKEN_SECRET", "dev-player-secret-change-in-production")
 
 
 class ProductionConfig(Config):

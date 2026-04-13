@@ -5,13 +5,13 @@ from pydantic import ValidationError
 from src.extensions import db
 from src.models.models import GlobalConfig
 from src.schemas import ConfigUpdate
-from src.services.auth import token_required
+from src.services.auth import cognito_token_required
 
 config_bp = Blueprint("config", __name__, url_prefix="/api/config")
 
 
 @config_bp.route("", methods=["GET"])
-@token_required
+@cognito_token_required
 def get_all_config():
     """Get all global configuration settings.
     ---
@@ -31,7 +31,7 @@ def get_all_config():
 
 
 @config_bp.route("/<string:key>", methods=["PUT"])
-@token_required
+@cognito_token_required
 def update_config(key):
     """Update a configuration setting.
     ---

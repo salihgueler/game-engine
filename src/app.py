@@ -9,7 +9,6 @@ from flask_cors import CORS
 from src.config import config_by_name
 from src.extensions import db
 from src.models.models import GlobalConfig
-from src.services.auth import add_refresh_header
 
 
 def create_app(config_name=None):
@@ -40,7 +39,7 @@ def create_app(config_name=None):
                 "type": "apiKey",
                 "name": "Authorization",
                 "in": "header",
-                "description": "JWT token. Format: Bearer <token>",
+                "description": "Cognito JWT (admin) or player token. Format: Bearer <token>",
             }
         },
     }
@@ -62,9 +61,6 @@ def create_app(config_name=None):
     app.register_blueprint(bank_bp)
     app.register_blueprint(question_bp)
     app.register_blueprint(ui_bp)
-
-    # Auto-refresh JWT header
-    app.after_request(add_refresh_header)
 
     # Create tables and seed config
     with app.app_context():

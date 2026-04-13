@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from src.extensions import db
 from src.models.models import Event, QuestionBank
 from src.schemas import EventCreate, EventUpdate
-from src.services.auth import token_required
+from src.services.auth import cognito_token_required
 
 event_bp = Blueprint("events", __name__, url_prefix="/api/events")
 
@@ -28,7 +28,7 @@ def _serialize_event(event):
 
 
 @event_bp.route("", methods=["GET"])
-@token_required
+@cognito_token_required
 def list_events():
     """List all events.
     ---
@@ -74,7 +74,7 @@ def list_events():
 
 
 @event_bp.route("", methods=["POST"])
-@token_required
+@cognito_token_required
 def create_event():
     """Create a new event. Requires an existing question bank.
     ---
@@ -143,7 +143,7 @@ def create_event():
 
 
 @event_bp.route("/<int:event_id>", methods=["GET"])
-@token_required
+@cognito_token_required
 def get_event(event_id):
     """Get an event by ID.
     ---
@@ -169,7 +169,7 @@ def get_event(event_id):
 
 
 @event_bp.route("/<int:event_id>", methods=["PUT"])
-@token_required
+@cognito_token_required
 def update_event(event_id):
     """Update an event.
     ---
@@ -233,7 +233,7 @@ def update_event(event_id):
 
 
 @event_bp.route("/<int:event_id>", methods=["DELETE"])
-@token_required
+@cognito_token_required
 def delete_event(event_id):
     """Delete an event.
     ---

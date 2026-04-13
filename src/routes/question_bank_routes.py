@@ -7,7 +7,7 @@ from src.extensions import db
 from src.models.models import Question, QuestionBank
 from src.routes.question_routes import _serialize_question
 from src.schemas import BankAssignQuestions, QuestionBankCreate, QuestionBankUpdate
-from src.services.auth import token_required
+from src.services.auth import cognito_token_required
 
 bank_bp = Blueprint("banks", __name__, url_prefix="/api/banks")
 
@@ -23,7 +23,7 @@ def _serialize_bank(bank):
 
 
 @bank_bp.route("", methods=["GET"])
-@token_required
+@cognito_token_required
 def list_banks():
     """List all question banks.
     ---
@@ -57,7 +57,7 @@ def list_banks():
 
 
 @bank_bp.route("", methods=["POST"])
-@token_required
+@cognito_token_required
 def create_bank():
     """Create a new question bank.
     ---
@@ -115,7 +115,7 @@ def create_bank():
 
 
 @bank_bp.route("/<int:bank_id>", methods=["GET"])
-@token_required
+@cognito_token_required
 def get_bank(bank_id):
     """Get a question bank by ID.
     ---
@@ -155,7 +155,7 @@ def get_bank(bank_id):
 
 
 @bank_bp.route("/<int:bank_id>", methods=["PUT"])
-@token_required
+@cognito_token_required
 def update_bank(bank_id):
     """Update a question bank.
     ---
@@ -214,7 +214,7 @@ def update_bank(bank_id):
 
 
 @bank_bp.route("/<int:bank_id>", methods=["DELETE"])
-@token_required
+@cognito_token_required
 def delete_bank(bank_id):
     """Delete a question bank. Does not delete the questions themselves, only the bank and its associations.
     ---
@@ -254,7 +254,7 @@ def delete_bank(bank_id):
 # --- Question assignment to banks ---
 
 @bank_bp.route("/<int:bank_id>/questions", methods=["GET"])
-@token_required
+@cognito_token_required
 def list_bank_questions(bank_id):
     """List all questions assigned to a bank. Supports optional filtering by programming language and difficulty.
     ---
@@ -305,7 +305,7 @@ def list_bank_questions(bank_id):
 
 
 @bank_bp.route("/<int:bank_id>/questions", methods=["POST"])
-@token_required
+@cognito_token_required
 def assign_questions(bank_id):
     """Assign existing questions to a bank. Questions are independent entities and can belong to multiple banks.
     ---
@@ -387,7 +387,7 @@ def assign_questions(bank_id):
 
 
 @bank_bp.route("/<int:bank_id>/questions", methods=["DELETE"])
-@token_required
+@cognito_token_required
 def unassign_questions(bank_id):
     """Remove questions from a bank. Does not delete the questions themselves, only removes the association.
     ---
@@ -456,7 +456,7 @@ def unassign_questions(bank_id):
 
 
 @bank_bp.route("/<int:bank_id>/questions/export", methods=["GET"])
-@token_required
+@cognito_token_required
 def export_bank_questions(bank_id):
     """Export all questions from a bank as JSON.
     ---
