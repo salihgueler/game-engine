@@ -139,7 +139,24 @@ class GamePlayer(db.Model):
     completed_at = db.Column(db.DateTime, nullable=True)
     joined_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
+    answers = db.relationship("GamePlayerAnswer", backref="game_player", lazy=True, cascade="all, delete-orphan")
+
     __table_args__ = (db.UniqueConstraint("game_id", "player_id", name="uq_game_player"),)
+
+
+class GamePlayerAnswer(db.Model):
+    """Tracks each answer submission per game/player/question for server-side scoring."""
+    __tablename__ = "game_player_answers"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    game_player_id = db.Column(db.Integer, db.ForeignKey("game_players.id"), nullable=False)
+    question_id = db.Column(db.Integer, db.ForeignKey("questions.id"), nullable=False)
+    correct = db.Column(db.Boolean, nullable=False)
+    answered_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    question = db.relationship("Question", lazy=True)
+
+    __table_args__ = (db.UniqueConstraint("game_player_id", "question_id", name="uq_game_player_answer"),)
 
 
 class GlobalConfig(db.Model):

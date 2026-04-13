@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
 from src.extensions import db
-from src.models.models import Event, Game, GamePlayer, GameQuestion, Player, QuestionDifficulty
+from src.models.models import Event, Game, GamePlayer, GamePlayerAnswer, GameQuestion, Player, QuestionDifficulty
 from src.schemas import GameEnd, PlayerCreate
 
 game_bp = Blueprint("games", __name__, url_prefix="/api/game")
@@ -278,7 +278,7 @@ def start_game():
 
 @game_bp.route("/<int:game_id>/end", methods=["POST"])
 def end_game(game_id):
-    """End a game for a player. Captures the final score and time taken.
+    """End a game for a player. Score is computed server-side from recorded answers.
     ---
     tags:
       - Game Flow
@@ -295,18 +295,10 @@ def end_game(game_id):
           type: object
           required:
             - player_id
-            - score
-            - time_taken_seconds
           properties:
             player_id:
               type: integer
               description: The player ending the game
-            score:
-              type: integer
-              description: Final score
-            time_taken_seconds:
-              type: integer
-              description: Total time taken in seconds
     responses:
       200:
         description: Game ended, score recorded
@@ -333,11 +325,6 @@ def end_game(game_id):
     if not player_id:
         return jsonify({"error": "player_id is required"}), 400
 
-    try:
-        data = GameEnd(**{k: v for k, v in body.items() if k in ("score", "time_taken_seconds")})
-    except ValidationError as e:
-        return jsonify({"error": e.errors()}), 400
-
     game = Game.query.get(game_id)
     if not game:
         return jsonify({"error": "Game not found"}), 404
@@ -349,9 +336,13 @@ def end_game(game_id):
     if gp.completed_at:
         return jsonify({"error": "Game already ended for this player"}), 409
 
-    gp.score = data.score
-    gp.time_taken_seconds = data.time_taken_seconds
-    gp.completed_at = datetime.now(timezone.utc)
+    # Compute score server-side from recorded answers
+    score = _compute_score(gp)
+
+    now = datetime.now(timezone.utc)
+    gp.score = score
+    gp.time_taken_seconds = int((now - gp.joined_at).total_seconds())
+    gp.completed_at = now
     db.session.commit()
 
     return jsonify({
@@ -361,6 +352,43 @@ def end_game(game_id):
         "time_taken_seconds": gp.time_taken_seconds,
         "completed_at": gp.completed_at.isoformat(),
     })
+
+
+# Points per difficulty level (must match frontend POINTS_BY_DIFFICULTY)
+_POINTS = {
+    QuestionDifficulty.Easy: 10,
+    QuestionDifficulty.Moderate: 25,
+    QuestionDifficulty.Hard: 50,
+}
+
+
+def _compute_score(gp):
+    """Compute a player's score from their recorded answers.
+
+    Scoring rules (matching frontend):
+    - Easy: 10 pts, Moderate: 25 pts, Hard: 50 pts
+    - Streak multiplier: 2x after 3+ consecutive correct answers
+    """
+    answers = (
+        GamePlayerAnswer.query
+        .filter_by(game_player_id=gp.id)
+        .order_by(GamePlayerAnswer.answered_at)
+        .all()
+    )
+
+    score = 0
+    streak = 0
+
+    for ans in answers:
+        if ans.correct:
+            streak += 1
+            base = _POINTS.get(ans.question.difficulty, 10)
+            multiplier = 2 if streak >= 3 else 1
+            score += base * multiplier
+        else:
+            streak = 0
+
+    return score
 
 
 

@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
 from src.extensions import db
-from src.models.models import Question, QuestionCategory, QuestionDifficulty
+from src.models.models import Question, QuestionCategory, QuestionDifficulty, GamePlayer, GamePlayerAnswer
 from src.schemas import AnswerSubmit, QuestionCreate, QuestionImport, QuestionUpdate
 from src.services.auth import cognito_token_required, player_token_required, _either_token_required
 from src.services.evaluator import evaluate_coding, evaluate_general_knowledge, evaluate_multiple_choice
@@ -467,6 +467,7 @@ def delete_all_questions():
 @_either_token_required
 def submit_answer(question_id):
     """Submit an answer for evaluation. The evaluation strategy depends on the question category (MultipleChoice, General, or Coding).
+    Optionally accepts game_id and player_id to record the answer for server-side scoring.
     ---
     tags:
       - Questions
@@ -489,6 +490,12 @@ def submit_answer(question_id):
             answer:
               type: string
               description: The player's answer
+            game_id:
+              type: integer
+              description: Game ID (optional, for server-side score tracking)
+            player_id:
+              type: integer
+              description: Player ID (optional, for server-side score tracking)
     responses:
       200:
         description: Evaluation result
@@ -505,8 +512,10 @@ def submit_answer(question_id):
         description: Question not found
     """
     q = Question.query.get_or_404(question_id)
+    body = request.get_json() or {}
+
     try:
-        data = AnswerSubmit(**request.get_json())
+        data = AnswerSubmit(**body)
     except ValidationError as e:
         return jsonify({"error": e.errors()}), 400
 
@@ -518,6 +527,25 @@ def submit_answer(question_id):
         result = evaluate_coding(q, data.answer)
     else:
         return jsonify({"error": "Unknown question category"}), 400
+
+    # Record the answer for server-side scoring if game_id and player_id provided
+    game_id = body.get("game_id")
+    player_id = body.get("player_id")
+    if game_id and player_id:
+        gp = GamePlayer.query.filter_by(game_id=game_id, player_id=player_id).first()
+        if gp and not gp.completed_at:
+            # Only record if not already answered for this question in this game
+            existing = GamePlayerAnswer.query.filter_by(
+                game_player_id=gp.id, question_id=question_id
+            ).first()
+            if not existing:
+                answer_record = GamePlayerAnswer(
+                    game_player_id=gp.id,
+                    question_id=question_id,
+                    correct=result.get("correct", False),
+                )
+                db.session.add(answer_record)
+                db.session.commit()
 
     return jsonify(result)
 
