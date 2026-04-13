@@ -48,6 +48,7 @@ def create_app(config_name=None):
 
     # Register blueprints
     from src.routes.auth_routes import auth_bp
+    from src.routes.audit_routes import audit_bp
     from src.routes.config_routes import config_bp
     from src.routes.event_routes import event_bp
     from src.routes.game_routes import game_bp
@@ -55,6 +56,7 @@ def create_app(config_name=None):
     from src.routes.question_routes import question_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(audit_bp)
     app.register_blueprint(config_bp)
     app.register_blueprint(event_bp)
     app.register_blueprint(game_bp)

@@ -102,4 +102,8 @@ def update_config(key):
         admin_user, key, old_value, data.value,
     )
 
+    # Record in audit log table
+    from src.services.audit import log_action
+    log_action("config_change", "config", key, {"old_value": old_value, "new_value": data.value})
+
     return jsonify({"key": cfg.key, "value": cfg.value, "description": cfg.description})

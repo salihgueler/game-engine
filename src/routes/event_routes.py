@@ -7,6 +7,7 @@ from src.extensions import db
 from src.models.models import Event, QuestionBank
 from src.schemas import EventCreate, EventUpdate
 from src.services.auth import cognito_token_required
+from src.services.audit import log_action
 
 event_bp = Blueprint("events", __name__, url_prefix="/api/events")
 
@@ -139,6 +140,7 @@ def create_event():
     )
     db.session.add(event)
     db.session.commit()
+    log_action("create", "event", event.id, {"name": event.name})
     return jsonify(_serialize_event(event)), 201
 
 
@@ -229,6 +231,7 @@ def update_event(event_id):
         event.code_expiry = data.code_expiry
 
     db.session.commit()
+    log_action("update", "event", event_id)
     return jsonify(_serialize_event(event))
 
 
@@ -259,6 +262,8 @@ def delete_event(event_id):
         description: Event not found
     """
     event = Event.query.get_or_404(event_id)
+    event_name = event.name
     db.session.delete(event)
     db.session.commit()
+    log_action("delete", "event", event_id, {"name": event_name})
     return jsonify({"message": "Deleted"})

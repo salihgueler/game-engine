@@ -171,3 +171,16 @@ class GlobalConfig(db.Model):
     # Default config keys
     SHOW_CORRECT_ON_WRONG = "show_correct_answer_on_wrong"
     AUTO_PASS_ALL = "auto_pass_all_questions"
+
+
+class AuditLog(db.Model):
+    """Audit log for tracking admin and game actions."""
+    __tablename__ = "audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    actor = db.Column(db.String(256), nullable=False)
+    action = db.Column(db.String(64), nullable=False, index=True)
+    resource_type = db.Column(db.String(64), nullable=False)
+    resource_id = db.Column(db.String(128), nullable=True)
+    details = db.Column(db.Text, nullable=True)

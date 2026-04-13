@@ -8,6 +8,7 @@ from src.extensions import db
 from src.models.models import Question, QuestionCategory, QuestionDifficulty, GamePlayer, GamePlayerAnswer
 from src.schemas import AnswerSubmit, QuestionCreate, QuestionImport, QuestionUpdate
 from src.services.auth import cognito_token_required, player_token_required, _either_token_required
+from src.services.audit import log_action
 from src.services.evaluator import evaluate_coding, evaluate_general_knowledge, evaluate_multiple_choice
 
 question_bp = Blueprint("questions", __name__, url_prefix="/api/questions")
@@ -283,6 +284,7 @@ def create_question():
     )
     db.session.add(q)
     db.session.commit()
+    log_action("create", "question", q.id, {"category": data.category, "difficulty": data.difficulty})
     return jsonify(_serialize_question(q)), 201
 
 
@@ -400,6 +402,7 @@ def update_question(question_id):
         q.code_hidden_output = data.code_hidden_output
 
     db.session.commit()
+    log_action("update", "question", question_id)
     return jsonify(_serialize_question(q))
 
 
@@ -433,6 +436,7 @@ def delete_question(question_id):
     q = Question.query.get_or_404(question_id)
     db.session.delete(q)
     db.session.commit()
+    log_action("delete", "question", question_id)
     return jsonify({"message": "Deleted"})
 
 
@@ -458,6 +462,7 @@ def delete_all_questions():
     db.session.execute(db.text("DELETE FROM question_bank_questions"))
     Question.query.delete()
     db.session.commit()
+    log_action("delete_all", "question", None, {"deleted_count": count})
     return jsonify({"deleted": count})
 
 
@@ -782,4 +787,5 @@ def import_questions():
         imported.append(_serialize_question(q))
 
     db.session.commit()
+    log_action("import", "question", None, {"imported_count": len(imported)})
     return jsonify({"imported": len(imported), "questions": imported}), 201
