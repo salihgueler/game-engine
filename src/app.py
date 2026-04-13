@@ -29,21 +29,22 @@ def create_app(config_name=None):
     db.init_app(app)
     CORS(app, expose_headers=["X-Refreshed-Token"])
 
-    # Swagger
-    app.config["SWAGGER"] = {
-        "title": "Quest - Question Engine API",
-        "uiversion": 3,
-        "specs_route": "/apidocs/",
-        "securityDefinitions": {
-            "Bearer": {
-                "type": "apiKey",
-                "name": "Authorization",
-                "in": "header",
-                "description": "Cognito JWT (admin) or player token. Format: Bearer <token>",
-            }
-        },
-    }
-    Swagger(app)
+    # Swagger — only enabled in development
+    if app.config.get("DEBUG"):
+        app.config["SWAGGER"] = {
+            "title": "Quest - Question Engine API",
+            "uiversion": 3,
+            "specs_route": "/apidocs/",
+            "securityDefinitions": {
+                "Bearer": {
+                    "type": "apiKey",
+                    "name": "Authorization",
+                    "in": "header",
+                    "description": "Cognito JWT (admin) or player token. Format: Bearer <token>",
+                }
+            },
+        }
+        Swagger(app)
 
     # Register blueprints
     from src.routes.auth_routes import auth_bp
@@ -52,7 +53,6 @@ def create_app(config_name=None):
     from src.routes.game_routes import game_bp
     from src.routes.question_bank_routes import bank_bp
     from src.routes.question_routes import question_bp
-    from src.routes.ui_routes import ui_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(config_bp)
@@ -60,7 +60,6 @@ def create_app(config_name=None):
     app.register_blueprint(game_bp)
     app.register_blueprint(bank_bp)
     app.register_blueprint(question_bp)
-    app.register_blueprint(ui_bp)
 
     # Create tables and seed config
     with app.app_context():
