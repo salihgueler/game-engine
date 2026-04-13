@@ -7,7 +7,7 @@ from pydantic import ValidationError
 from src.extensions import db
 from src.models.models import Question, QuestionCategory, QuestionDifficulty
 from src.schemas import AnswerSubmit, QuestionCreate, QuestionImport, QuestionUpdate
-from src.services.auth import cognito_token_required, player_token_required
+from src.services.auth import cognito_token_required, player_token_required, _either_token_required
 from src.services.evaluator import evaluate_coding, evaluate_general_knowledge, evaluate_multiple_choice
 
 question_bp = Blueprint("questions", __name__, url_prefix="/api/questions")
@@ -51,7 +51,7 @@ def _next_question_number():
 
 
 @question_bp.route("", methods=["GET"])
-@player_token_required
+@_either_token_required
 def list_questions():
     """List all questions. Supports optional filtering by programming language and difficulty.
     ---
@@ -249,7 +249,7 @@ def create_question():
 
 
 @question_bp.route("/<int:question_id>", methods=["GET"])
-@player_token_required
+@_either_token_required
 def get_question(question_id):
     """Get a question by ID. Response includes the list of banks this question belongs to.
     ---
@@ -426,7 +426,7 @@ def delete_all_questions():
 # --- Evaluation, Hints, Export/Import ---
 
 @question_bp.route("/<int:question_id>/answer", methods=["POST"])
-@player_token_required
+@_either_token_required
 def submit_answer(question_id):
     """Submit an answer for evaluation. The evaluation strategy depends on the question category (MultipleChoice, General, or Coding).
     ---
@@ -485,7 +485,7 @@ def submit_answer(question_id):
 
 
 @question_bp.route("/<int:question_id>/hint", methods=["GET"])
-@player_token_required
+@_either_token_required
 def get_hint(question_id):
     """Get a hint for a question. Increments the times_hint_used counter. For MultipleChoice questions, also removes one incorrect option. For Coding questions, includes sample input/output.
     ---

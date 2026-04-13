@@ -168,6 +168,37 @@ def decode_player_token(token: str) -> dict | None:
         return None
 
 
+def _either_token_required(f):
+    """Decorator that accepts either a Cognito admin token or a player token."""
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if request.method == "OPTIONS":
+            return f(*args, **kwargs)
+
+        auth_header = request.headers.get("Authorization", "")
+        token = None
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+        elif auth_header:
+            token = auth_header
+
+        if not token:
+            return jsonify({"error": "Token is missing"}), 401
+
+        # Try Cognito first, then player token
+        payload = _decode_cognito_token(token)
+        if payload is not None:
+            request.cognito_user = payload.get("email") or payload.get("sub")
+            return f(*args, **kwargs)
+
+        payload = decode_player_token(token)
+        if payload is not None:
+            return f(*args, **kwargs)
+
+        return jsonify({"error": "Token is invalid or expired"}), 401
+    return decorated
+
+
 def player_token_required(f):
     """Decorator to require a valid player token for game-play API endpoints."""
     @functools.wraps(f)
