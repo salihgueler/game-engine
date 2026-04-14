@@ -152,6 +152,7 @@ class GamePlayerAnswer(db.Model):
     game_player_id = db.Column(db.Integer, db.ForeignKey("game_players.id"), nullable=False)
     question_id = db.Column(db.Integer, db.ForeignKey("questions.id"), nullable=False)
     correct = db.Column(db.Boolean, nullable=False)
+    tile_difficulty = db.Column(db.String(16), nullable=True)
     answered_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
     question = db.relationship("Question", lazy=True)

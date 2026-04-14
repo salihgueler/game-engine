@@ -439,11 +439,11 @@ def end_game(game_id):
     })
 
 
-# Points per difficulty level (must match frontend POINTS_BY_DIFFICULTY)
-_POINTS = {
-    QuestionDifficulty.Easy: 10,
-    QuestionDifficulty.Moderate: 25,
-    QuestionDifficulty.Hard: 50,
+# Points per tile difficulty level (must match frontend POINTS_BY_DIFFICULTY)
+_TILE_POINTS = {
+    "easy": 10,
+    "medium": 25,
+    "hard": 50,
 }
 
 
@@ -451,8 +451,11 @@ def _compute_score(gp):
     """Compute a player's score from their recorded answers.
 
     Scoring rules (matching frontend):
-    - Easy: 10 pts, Moderate: 25 pts, Hard: 50 pts
+    - Easy tile: 10 pts, Medium tile: 25 pts, Hard tile: 50 pts
     - Streak multiplier: 2x after 3+ consecutive correct answers
+
+    Points are based on the tile difficulty (set by the game board),
+    not the question's own difficulty.
     """
     answers = (
         GamePlayerAnswer.query
@@ -467,7 +470,7 @@ def _compute_score(gp):
     for ans in answers:
         if ans.correct:
             streak += 1
-            base = _POINTS.get(ans.question.difficulty, 10)
+            base = _TILE_POINTS.get(ans.tile_difficulty, 10)
             multiplier = 2 if streak >= 3 else 1
             score += base * multiplier
         else:

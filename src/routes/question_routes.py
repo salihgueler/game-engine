@@ -538,6 +538,7 @@ def submit_answer(question_id):
     # Record the answer for server-side scoring if game_id and player_id provided
     game_id = body.get("game_id")
     player_id = body.get("player_id")
+    tile_difficulty = body.get("tile_difficulty")
     if game_id and player_id:
         gp = GamePlayer.query.filter_by(game_id=game_id, player_id=player_id).first()
         if gp and not gp.completed_at:
@@ -548,11 +549,14 @@ def submit_answer(question_id):
                 # Update the existing answer (player retried the question)
                 existing.correct = result.get("correct", False)
                 existing.answered_at = datetime.now(timezone.utc)
+                if tile_difficulty:
+                    existing.tile_difficulty = tile_difficulty
             else:
                 answer_record = GamePlayerAnswer(
                     game_player_id=gp.id,
                     question_id=question_id,
                     correct=result.get("correct", False),
+                    tile_difficulty=tile_difficulty,
                 )
                 db.session.add(answer_record)
             db.session.commit()
