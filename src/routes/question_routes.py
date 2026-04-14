@@ -1,5 +1,6 @@
 """Question CRUD and evaluation routes — questions are independent entities."""
 import json
+from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
@@ -540,18 +541,21 @@ def submit_answer(question_id):
     if game_id and player_id:
         gp = GamePlayer.query.filter_by(game_id=game_id, player_id=player_id).first()
         if gp and not gp.completed_at:
-            # Only record if not already answered for this question in this game
             existing = GamePlayerAnswer.query.filter_by(
                 game_player_id=gp.id, question_id=question_id
             ).first()
-            if not existing:
+            if existing:
+                # Update the existing answer (player retried the question)
+                existing.correct = result.get("correct", False)
+                existing.answered_at = datetime.now(timezone.utc)
+            else:
                 answer_record = GamePlayerAnswer(
                     game_player_id=gp.id,
                     question_id=question_id,
                     correct=result.get("correct", False),
                 )
                 db.session.add(answer_record)
-                db.session.commit()
+            db.session.commit()
 
     return jsonify(result)
 
