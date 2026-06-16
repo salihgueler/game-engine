@@ -23,7 +23,7 @@ def _get_config_flag(key, default="false"):
 def _get_bedrock_model():
     """Create a Bedrock model instance."""
     region = os.environ.get("AWS_REGION", "eu-west-1")
-    model_id = os.environ.get("BEDROCK_MODEL_ID", "eu.anthropic.claude-sonnet-4-20250514-v1:0")
+    model_id = os.environ.get("BEDROCK_MODEL_ID", "eu.anthropic.claude-sonnet-4-6")
     return BedrockModel(model_id=model_id, region_name=region)
 
 
