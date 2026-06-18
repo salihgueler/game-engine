@@ -226,13 +226,28 @@ def create_player():
     except ValidationError as e:
         return jsonify({"error": e.errors()}), 400
 
-    player = Player(
-        name=data.name,
-        avatar=data.avatar,
-        preferred_coding_language=data.preferred_coding_language,
-        difficulty=QuestionDifficulty(data.difficulty),
+    # Reuse an existing player with the same name (alias) so a returning user
+    # keeps a single identity instead of spawning a new record on every play.
+    # This is what lets a replay update the player's leaderboard entry rather
+    # than creating a duplicate one (see end_game consolidation).
+    player = (
+        Player.query.filter_by(name=data.name)
+        .order_by(Player.id.asc())
+        .first()
     )
-    db.session.add(player)
+    if player:
+        # Refresh profile choices to the latest selections.
+        player.avatar = data.avatar
+        player.preferred_coding_language = data.preferred_coding_language
+        player.difficulty = QuestionDifficulty(data.difficulty)
+    else:
+        player = Player(
+            name=data.name,
+            avatar=data.avatar,
+            preferred_coding_language=data.preferred_coding_language,
+            difficulty=QuestionDifficulty(data.difficulty),
+        )
+        db.session.add(player)
     db.session.commit()
 
     # Issue a player session token bound to this player_id
@@ -428,14 +443,20 @@ def end_game(game_id):
     joined_at = gp.joined_at if gp.joined_at.tzinfo else gp.joined_at.replace(tzinfo=timezone.utc)
     gp.time_taken_seconds = int((now - joined_at).total_seconds())
     gp.completed_at = now
+    db.session.flush()
+
+    # If this player has played this event before, keep only their best run
+    # (highest score, then fastest time) so the leaderboard updates their
+    # existing entry instead of accumulating a new one per play.
+    keeper = _consolidate_event_entries(game.event_id, player_id)
     db.session.commit()
 
     return jsonify({
-        "game_id": game_id,
+        "game_id": keeper.game_id,
         "player_id": player_id,
-        "score": gp.score,
-        "time_taken_seconds": gp.time_taken_seconds,
-        "completed_at": gp.completed_at.isoformat(),
+        "score": keeper.score,
+        "time_taken_seconds": keeper.time_taken_seconds,
+        "completed_at": keeper.completed_at.isoformat() if keeper.completed_at else None,
     })
 
 
@@ -478,6 +499,42 @@ def _compute_score(gp):
 
     return score
 
+
+def _consolidate_event_entries(event_id, player_id):
+    """Collapse a player's completed runs in an event down to a single entry.
+
+    Keeps the best run (highest score, then fastest time) and deletes the
+    other completed runs for this player in this event. Deleting a run's Game
+    cascades to its GameQuestion, GamePlayer and GamePlayerAnswer rows
+    (see model cascade rules), so no orphans are left behind.
+
+    Returns the surviving GamePlayer. Scoped strictly to one player within one
+    event, so it never touches other players' entries.
+    """
+    entries = (
+        db.session.query(GamePlayer)
+        .join(Game, GamePlayer.game_id == Game.id)
+        .filter(Game.event_id == event_id)
+        .filter(GamePlayer.player_id == player_id)
+        .filter(GamePlayer.completed_at.isnot(None))
+        .all()
+    )
+
+    if not entries:
+        return None
+
+    # Best first: higher score wins; tie broken by fewer seconds taken.
+    entries.sort(key=lambda gp: (gp.score, -(gp.time_taken_seconds or 0)), reverse=True)
+    keeper = entries[0]
+
+    for loser in entries[1:]:
+        game = Game.query.get(loser.game_id)
+        if game is not None:
+            db.session.delete(game)
+        else:
+            db.session.delete(loser)
+
+    return keeper
 
 
 # --- Player GET APIs ---
