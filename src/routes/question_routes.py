@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
 
 from src.extensions import db, limiter
-from src.models.models import Question, QuestionCategory, QuestionDifficulty, GamePlayer, GamePlayerAnswer
+from src.models.models import Question, QuestionCategory, QuestionDifficulty, GamePlayer, GamePlayerAnswer, CodeVariant
 from src.schemas import AnswerSubmit, QuestionCreate, QuestionImport, QuestionUpdate
 from src.services.auth import cognito_token_required, player_token_required, _either_token_required
 from src.services.audit import log_action
@@ -44,6 +44,17 @@ def _serialize_question_admin(q):
         data["code_sample_output"] = q.code_sample_output
         data["code_hidden_input"] = q.code_hidden_input
         data["code_hidden_output"] = q.code_hidden_output
+        data["code_variants"] = [
+            {
+                "language": v.language,
+                "starter_code": v.starter_code,
+                "code_sample_input": v.code_sample_input,
+                "code_sample_output": v.code_sample_output,
+                "code_hidden_input": v.code_hidden_input,
+                "code_hidden_output": v.code_hidden_output,
+            }
+            for v in q.code_variants
+        ]
     return data
 
 
@@ -69,6 +80,22 @@ def _serialize_question_player(q):
         data["code_programming_language"] = q.code_programming_language
         data["code_sample_input"] = q.code_sample_input
         data["code_sample_output"] = q.code_sample_output
+        # Player-safe variants: expose starter code + sample I/O only (no hidden).
+        data["code_variants"] = [
+            {
+                "language": v.language,
+                "starter_code": v.starter_code,
+                "code_sample_input": v.code_sample_input,
+                "code_sample_output": v.code_sample_output,
+            }
+            for v in q.code_variants
+        ]
+        # Languages the player may choose from. Fall back to the legacy single
+        # language when a question has no variants yet.
+        available = [v.language for v in q.code_variants]
+        if not available and q.code_programming_language:
+            available = [q.code_programming_language.lower().strip()]
+        data["available_languages"] = available
     return data
 
 
@@ -88,6 +115,37 @@ def _next_question_number():
     """Get the next global sequential question number."""
     last = Question.query.order_by(Question.question_number.desc()).first()
     return (last.question_number + 1) if last else 1
+
+
+def _apply_code_variants(q, variants):
+    """Replace a question's per-language code variants with `variants`.
+
+    Also mirrors the first (primary) variant into the legacy code_* columns so
+    older readers and the evaluator's fallback path keep working. `variants` is
+    a list of validated CodeVariantInput objects.
+    """
+    # Drop existing variants; the delete-orphan cascade removes them on flush.
+    q.code_variants.clear()
+
+    primary = None
+    for v in variants:
+        q.code_variants.append(CodeVariant(
+            language=v.language,
+            starter_code=v.starter_code,
+            code_sample_input=v.code_sample_input,
+            code_sample_output=v.code_sample_output,
+            code_hidden_input=v.code_hidden_input,
+            code_hidden_output=v.code_hidden_output,
+        ))
+        if primary is None:
+            primary = v
+
+    if primary is not None:
+        q.code_programming_language = primary.language
+        q.code_sample_input = primary.code_sample_input
+        q.code_sample_output = primary.code_sample_output
+        q.code_hidden_input = primary.code_hidden_input
+        q.code_hidden_output = primary.code_hidden_output
 
 
 @question_bp.route("", methods=["GET"])
@@ -284,6 +342,8 @@ def create_question():
         code_hidden_output=data.code_hidden_output,
     )
     db.session.add(q)
+    if data.code_variants:
+        _apply_code_variants(q, data.code_variants)
     db.session.commit()
     log_action("create", "question", q.id, {"category": data.category, "difficulty": data.difficulty})
     return jsonify(_serialize_question(q)), 201
@@ -401,6 +461,8 @@ def update_question(question_id):
         q.code_hidden_input = data.code_hidden_input
     if data.code_hidden_output is not None:
         q.code_hidden_output = data.code_hidden_output
+    if data.code_variants is not None:
+        _apply_code_variants(q, data.code_variants)
 
     db.session.commit()
     log_action("update", "question", question_id)
@@ -531,7 +593,7 @@ def submit_answer(question_id):
     elif q.category == QuestionCategory.General:
         result = evaluate_general_knowledge(q, data.answer)
     elif q.category == QuestionCategory.Coding:
-        result = evaluate_coding(q, data.answer)
+        result = evaluate_coding(q, data.answer, data.language)
     else:
         return jsonify({"error": "Unknown question category"}), 400
 
