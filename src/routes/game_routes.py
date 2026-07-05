@@ -450,7 +450,9 @@ def end_game(game_id):
     # time. So a lower replay never lowers their standing, and runs in other
     # events stay separate (a player legitimately has one result per event).
     # Return the best run so the client reflects the player's actual standing.
-    best = _best_event_entry(game.event_id, player_id)
+    # Fall back to the just-completed run if no best is found — defensive only:
+    # gp was flushed as completed above, so it always qualifies.
+    best = _best_event_entry(game.event_id, player_id) or gp
     db.session.commit()
 
     return jsonify({
