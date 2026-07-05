@@ -226,13 +226,28 @@ def create_player():
     except ValidationError as e:
         return jsonify({"error": e.errors()}), 400
 
-    player = Player(
-        name=data.name,
-        avatar=data.avatar,
-        preferred_coding_language=data.preferred_coding_language,
-        difficulty=QuestionDifficulty(data.difficulty),
+    # Reuse an existing player with the same name (alias) so a returning user
+    # keeps a single identity instead of spawning a new record on every play.
+    # This is what lets a replay update the player's leaderboard entry rather
+    # than creating a duplicate one (see end_game consolidation).
+    player = (
+        Player.query.filter_by(name=data.name)
+        .order_by(Player.id.asc())
+        .first()
     )
-    db.session.add(player)
+    if player:
+        # Refresh profile choices to the latest selections.
+        player.avatar = data.avatar
+        player.preferred_coding_language = data.preferred_coding_language
+        player.difficulty = QuestionDifficulty(data.difficulty)
+    else:
+        player = Player(
+            name=data.name,
+            avatar=data.avatar,
+            preferred_coding_language=data.preferred_coding_language,
+            difficulty=QuestionDifficulty(data.difficulty),
+        )
+        db.session.add(player)
     db.session.commit()
 
     # Issue a player session token bound to this player_id
@@ -428,14 +443,24 @@ def end_game(game_id):
     joined_at = gp.joined_at if gp.joined_at.tzinfo else gp.joined_at.replace(tzinfo=timezone.utc)
     gp.time_taken_seconds = int((now - joined_at).total_seconds())
     gp.completed_at = now
+    db.session.flush()
+
+    # Keep every run (non-destructive). A player's standing for this event is
+    # their BEST run; the leaderboard queries dedupe to that best run at read
+    # time. So a lower replay never lowers their standing, and runs in other
+    # events stay separate (a player legitimately has one result per event).
+    # Return the best run so the client reflects the player's actual standing.
+    # Fall back to the just-completed run if no best is found — defensive only:
+    # gp was flushed as completed above, so it always qualifies.
+    best = _best_event_entry(game.event_id, player_id) or gp
     db.session.commit()
 
     return jsonify({
-        "game_id": game_id,
+        "game_id": best.game_id,
         "player_id": player_id,
-        "score": gp.score,
-        "time_taken_seconds": gp.time_taken_seconds,
-        "completed_at": gp.completed_at.isoformat(),
+        "score": best.score,
+        "time_taken_seconds": best.time_taken_seconds,
+        "completed_at": best.completed_at.isoformat() if best.completed_at else None,
     })
 
 
@@ -478,6 +503,33 @@ def _compute_score(gp):
 
     return score
 
+
+def _best_event_entry(event_id, player_id):
+    """Return a player's best completed run within a single event.
+
+    Best = highest score, ties broken by fastest time. Returns None if the
+    player has no completed runs in the event.
+
+    This is non-destructive: all runs are preserved. Leaderboards apply the
+    same "best run" rule at read time (deduping), so replaying the SAME event
+    only ever keeps the higher score, while runs in DIFFERENT events remain
+    independent. Scoped strictly to one player within one event.
+    """
+    entries = (
+        db.session.query(GamePlayer)
+        .join(Game, GamePlayer.game_id == Game.id)
+        .filter(Game.event_id == event_id)
+        .filter(GamePlayer.player_id == player_id)
+        .filter(GamePlayer.completed_at.isnot(None))
+        .all()
+    )
+
+    if not entries:
+        return None
+
+    # Best first: higher score wins; tie broken by fewer seconds taken.
+    entries.sort(key=lambda gp: (gp.score, -(gp.time_taken_seconds or 0)), reverse=True)
+    return entries[0]
 
 
 # --- Player GET APIs ---
@@ -581,17 +633,35 @@ def event_leaderboard(event_id):
     """
     event = Event.query.get_or_404(event_id)
 
-    # Find all completed game_players for games in this event
-    results = (
-        db.session.query(GamePlayer, Player, Game)
+    # All completed runs for this event, best first. We fetch every run (not
+    # just 10) because a player may have several runs here; we keep only their
+    # best one below so replays never take multiple leaderboard slots.
+    rows = (
+        db.session.query(GamePlayer, Player)
         .join(Game, GamePlayer.game_id == Game.id)
         .join(Player, GamePlayer.player_id == Player.id)
         .filter(Game.event_id == event_id)
         .filter(GamePlayer.completed_at.isnot(None))
         .order_by(GamePlayer.score.desc(), GamePlayer.time_taken_seconds.asc())
-        .limit(10)
         .all()
     )
+
+    # Keep each player's best run only (rows are already best-first), capped at 10.
+    leaderboard = []
+    seen_players = set()
+    for gp, player in rows:
+        if player.id in seen_players:
+            continue
+        seen_players.add(player.id)
+        leaderboard.append({
+            "player_name": player.name,
+            "avatar": player.avatar,
+            "score": gp.score,
+            "time_taken_seconds": gp.time_taken_seconds,
+            "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
+        })
+        if len(leaderboard) >= 10:
+            break
 
     return jsonify({
         "event": {
@@ -599,16 +669,7 @@ def event_leaderboard(event_id):
             "name": event.name,
             "access_code": event.access_code,
         },
-        "leaderboard": [
-            {
-                "player_name": player.name,
-                "avatar": player.avatar,
-                "score": gp.score,
-                "time_taken_seconds": gp.time_taken_seconds,
-                "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
-            }
-            for gp, player, game in results
-        ],
+        "leaderboard": leaderboard,
     })
 
 
@@ -622,28 +683,39 @@ def global_leaderboard():
       200:
         description: Top 10 players across all events
     """
-    results = (
-        db.session.query(GamePlayer, Player, Game, Event)
+    # All completed runs across every event, best first. Fetch all, then dedupe
+    # keyed on (player, event): replays of the same event collapse to the best
+    # run, while different events remain separate legitimate results (so a
+    # player can appear once per event).
+    rows = (
+        db.session.query(GamePlayer, Player, Event)
         .join(Game, GamePlayer.game_id == Game.id)
         .join(Player, GamePlayer.player_id == Player.id)
         .join(Event, Game.event_id == Event.id)
         .filter(GamePlayer.completed_at.isnot(None))
         .order_by(GamePlayer.score.desc(), GamePlayer.time_taken_seconds.asc())
-        .limit(10)
         .all()
     )
 
-    return jsonify([
-        {
+    leaderboard = []
+    seen = set()
+    for gp, player, event in rows:
+        key = (player.id, event.id)
+        if key in seen:
+            continue
+        seen.add(key)
+        leaderboard.append({
             "player_name": player.name,
             "avatar": player.avatar,
             "score": gp.score,
             "time_taken_seconds": gp.time_taken_seconds,
             "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
             "event_name": event.name,
-        }
-        for gp, player, game, event in results
-    ])
+        })
+        if len(leaderboard) >= 10:
+            break
+
+    return jsonify(leaderboard)
 
 
 # --- Player-facing config ---

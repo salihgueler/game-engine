@@ -155,13 +155,53 @@ Evaluate the player's answer. Return ONLY a JSON object with "confidence" (0-100
         return {"correct": False, "grade": "Error", "confidence": 0, "message": f"Evaluation error: {str(e)}"}
 
 
-def evaluate_coding(question, player_code):
-    """Evaluate coding answer using container-based sandbox execution."""
+def _resolve_variant(question, language):
+    """Resolve which language and test I/O to grade a coding answer against.
+
+    Prefers the requested language's variant, then the question's primary
+    (legacy) language variant, then the first available variant, and finally
+    the legacy code_* columns when no variants exist. Returns a tuple of
+    (language, sample_input, sample_output, hidden_input, hidden_output).
+    """
+    requested = (language or "").lower().strip()
+    variants = list(getattr(question, "code_variants", []) or [])
+
+    chosen = None
+    if requested:
+        chosen = next((v for v in variants if v.language == requested), None)
+    if chosen is None and variants:
+        primary_lang = (question.code_programming_language or "").lower().strip()
+        chosen = next((v for v in variants if v.language == primary_lang), variants[0])
+
+    if chosen is not None:
+        return (
+            chosen.language,
+            chosen.code_sample_input,
+            chosen.code_sample_output,
+            chosen.code_hidden_input,
+            chosen.code_hidden_output,
+        )
+
+    return (
+        (question.code_programming_language or "python").lower().strip(),
+        question.code_sample_input,
+        question.code_sample_output,
+        question.code_hidden_input,
+        question.code_hidden_output,
+    )
+
+
+def evaluate_coding(question, player_code, language=None):
+    """Evaluate a coding answer using container-based sandbox execution.
+
+    `language` selects which per-language variant to grade against; when omitted
+    or unknown, it falls back to the question's primary/legacy language.
+    """
     # Check auto-pass
     if _get_config_flag(GlobalConfig.AUTO_PASS_ALL):
         return {"correct": True, "grade": "Correct", "message": "Auto-pass enabled.", "hint_passed": True, "hidden_passed": True}
 
-    language = (question.code_programming_language or "python").lower().strip()
+    language, sample_input, sample_output, hidden_input, hidden_output = _resolve_variant(question, language)
 
     logger.info(
         "Coding evaluation started: question_id=%s, language=%s, code_length=%d",
@@ -174,15 +214,15 @@ def evaluate_coding(question, player_code):
         hidden_passed = False
 
         # Test with sample input/output
-        if question.code_sample_input and question.code_sample_output:
+        if sample_input and sample_output:
             logger.info("Running hint test: question_id=%s", question.id)
-            hint_passed = _run_sandbox_test(language, player_code, question.code_sample_input, question.code_sample_output)
+            hint_passed = _run_sandbox_test(language, player_code, sample_input, sample_output)
             logger.info("Hint test result: question_id=%s, passed=%s", question.id, hint_passed)
 
         # Test with hidden input/output
-        if question.code_hidden_input and question.code_hidden_output:
+        if hidden_input and hidden_output:
             logger.info("Running hidden test: question_id=%s", question.id)
-            hidden_passed = _run_sandbox_test(language, player_code, question.code_hidden_input, question.code_hidden_output)
+            hidden_passed = _run_sandbox_test(language, player_code, hidden_input, hidden_output)
             logger.info("Hidden test result: question_id=%s, passed=%s", question.id, hidden_passed)
 
         is_correct = hint_passed and hidden_passed
