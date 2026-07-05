@@ -445,18 +445,20 @@ def end_game(game_id):
     gp.completed_at = now
     db.session.flush()
 
-    # If this player has played this event before, keep only their best run
-    # (highest score, then fastest time) so the leaderboard updates their
-    # existing entry instead of accumulating a new one per play.
-    keeper = _consolidate_event_entries(game.event_id, player_id)
+    # Keep every run (non-destructive). A player's standing for this event is
+    # their BEST run; the leaderboard queries dedupe to that best run at read
+    # time. So a lower replay never lowers their standing, and runs in other
+    # events stay separate (a player legitimately has one result per event).
+    # Return the best run so the client reflects the player's actual standing.
+    best = _best_event_entry(game.event_id, player_id)
     db.session.commit()
 
     return jsonify({
-        "game_id": keeper.game_id,
+        "game_id": best.game_id,
         "player_id": player_id,
-        "score": keeper.score,
-        "time_taken_seconds": keeper.time_taken_seconds,
-        "completed_at": keeper.completed_at.isoformat() if keeper.completed_at else None,
+        "score": best.score,
+        "time_taken_seconds": best.time_taken_seconds,
+        "completed_at": best.completed_at.isoformat() if best.completed_at else None,
     })
 
 
@@ -500,16 +502,16 @@ def _compute_score(gp):
     return score
 
 
-def _consolidate_event_entries(event_id, player_id):
-    """Collapse a player's completed runs in an event down to a single entry.
+def _best_event_entry(event_id, player_id):
+    """Return a player's best completed run within a single event.
 
-    Keeps the best run (highest score, then fastest time) and deletes the
-    other completed runs for this player in this event. Deleting a run's Game
-    cascades to its GameQuestion, GamePlayer and GamePlayerAnswer rows
-    (see model cascade rules), so no orphans are left behind.
+    Best = highest score, ties broken by fastest time. Returns None if the
+    player has no completed runs in the event.
 
-    Returns the surviving GamePlayer. Scoped strictly to one player within one
-    event, so it never touches other players' entries.
+    This is non-destructive: all runs are preserved. Leaderboards apply the
+    same "best run" rule at read time (deduping), so replaying the SAME event
+    only ever keeps the higher score, while runs in DIFFERENT events remain
+    independent. Scoped strictly to one player within one event.
     """
     entries = (
         db.session.query(GamePlayer)
@@ -525,16 +527,7 @@ def _consolidate_event_entries(event_id, player_id):
 
     # Best first: higher score wins; tie broken by fewer seconds taken.
     entries.sort(key=lambda gp: (gp.score, -(gp.time_taken_seconds or 0)), reverse=True)
-    keeper = entries[0]
-
-    for loser in entries[1:]:
-        game = Game.query.get(loser.game_id)
-        if game is not None:
-            db.session.delete(game)
-        else:
-            db.session.delete(loser)
-
-    return keeper
+    return entries[0]
 
 
 # --- Player GET APIs ---
@@ -638,17 +631,35 @@ def event_leaderboard(event_id):
     """
     event = Event.query.get_or_404(event_id)
 
-    # Find all completed game_players for games in this event
-    results = (
-        db.session.query(GamePlayer, Player, Game)
+    # All completed runs for this event, best first. We fetch every run (not
+    # just 10) because a player may have several runs here; we keep only their
+    # best one below so replays never take multiple leaderboard slots.
+    rows = (
+        db.session.query(GamePlayer, Player)
         .join(Game, GamePlayer.game_id == Game.id)
         .join(Player, GamePlayer.player_id == Player.id)
         .filter(Game.event_id == event_id)
         .filter(GamePlayer.completed_at.isnot(None))
         .order_by(GamePlayer.score.desc(), GamePlayer.time_taken_seconds.asc())
-        .limit(10)
         .all()
     )
+
+    # Keep each player's best run only (rows are already best-first), capped at 10.
+    leaderboard = []
+    seen_players = set()
+    for gp, player in rows:
+        if player.id in seen_players:
+            continue
+        seen_players.add(player.id)
+        leaderboard.append({
+            "player_name": player.name,
+            "avatar": player.avatar,
+            "score": gp.score,
+            "time_taken_seconds": gp.time_taken_seconds,
+            "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
+        })
+        if len(leaderboard) >= 10:
+            break
 
     return jsonify({
         "event": {
@@ -656,16 +667,7 @@ def event_leaderboard(event_id):
             "name": event.name,
             "access_code": event.access_code,
         },
-        "leaderboard": [
-            {
-                "player_name": player.name,
-                "avatar": player.avatar,
-                "score": gp.score,
-                "time_taken_seconds": gp.time_taken_seconds,
-                "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
-            }
-            for gp, player, game in results
-        ],
+        "leaderboard": leaderboard,
     })
 
 
@@ -679,28 +681,39 @@ def global_leaderboard():
       200:
         description: Top 10 players across all events
     """
-    results = (
-        db.session.query(GamePlayer, Player, Game, Event)
+    # All completed runs across every event, best first. Fetch all, then dedupe
+    # keyed on (player, event): replays of the same event collapse to the best
+    # run, while different events remain separate legitimate results (so a
+    # player can appear once per event).
+    rows = (
+        db.session.query(GamePlayer, Player, Event)
         .join(Game, GamePlayer.game_id == Game.id)
         .join(Player, GamePlayer.player_id == Player.id)
         .join(Event, Game.event_id == Event.id)
         .filter(GamePlayer.completed_at.isnot(None))
         .order_by(GamePlayer.score.desc(), GamePlayer.time_taken_seconds.asc())
-        .limit(10)
         .all()
     )
 
-    return jsonify([
-        {
+    leaderboard = []
+    seen = set()
+    for gp, player, event in rows:
+        key = (player.id, event.id)
+        if key in seen:
+            continue
+        seen.add(key)
+        leaderboard.append({
             "player_name": player.name,
             "avatar": player.avatar,
             "score": gp.score,
             "time_taken_seconds": gp.time_taken_seconds,
             "completed_at": gp.completed_at.isoformat() if gp.completed_at else None,
             "event_name": event.name,
-        }
-        for gp, player, game, event in results
-    ])
+        })
+        if len(leaderboard) >= 10:
+            break
+
+    return jsonify(leaderboard)
 
 
 # --- Player-facing config ---
