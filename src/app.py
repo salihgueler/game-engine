@@ -70,6 +70,7 @@ def create_app(config_name=None):
     with app.app_context():
         db.create_all()
         _seed_config()
+        _backfill_code_variants()
 
     return app
 
@@ -85,3 +86,42 @@ def _seed_config():
         if not GlobalConfig.query.filter_by(key=key).first():
             db.session.add(GlobalConfig(key=key, value=value, description=desc))
     db.session.commit()
+
+
+def _backfill_code_variants():
+    """Copy legacy per-question code_* fields into a CodeVariant row.
+
+    Introduced alongside multi-language Coding questions so existing questions
+    (which stored a single language plus one sample/hidden I/O pair directly on
+    the Question) keep working. Idempotent: only creates a variant when one does
+    not already exist for that question+language, so it is safe on every boot.
+    """
+    from src.models.models import Question, QuestionCategory, CodeVariant
+
+    coding = Question.query.filter_by(category=QuestionCategory.Coding).all()
+    created = 0
+    for q in coding:
+        language = (q.code_programming_language or "python").lower().strip()
+        # Skip if a variant already exists for the legacy language, or if there
+        # is no legacy code content worth preserving.
+        if any(v.language == language for v in q.code_variants):
+            continue
+        if not any([
+            q.code_sample_input,
+            q.code_sample_output,
+            q.code_hidden_input,
+            q.code_hidden_output,
+        ]):
+            continue
+        db.session.add(CodeVariant(
+            question_id=q.id,
+            language=language,
+            starter_code=None,
+            code_sample_input=q.code_sample_input,
+            code_sample_output=q.code_sample_output,
+            code_hidden_input=q.code_hidden_input,
+            code_hidden_output=q.code_hidden_output,
+        ))
+        created += 1
+    if created:
+        db.session.commit()

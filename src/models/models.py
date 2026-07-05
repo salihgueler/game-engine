@@ -24,6 +24,12 @@ class QuestionDifficulty(enum.Enum):
     Hard = "Hard"
 
 
+# Programming languages supported for Coding questions. Must stay in sync with
+# the sandbox runners (services/sandbox/runner.py). Used to validate the
+# language of per-question code variants.
+SUPPORTED_CODE_LANGUAGES = ("python", "typescript", "java")
+
+
 # Many-to-many association table: QuestionBank <-> Question
 question_bank_questions = db.Table(
     "question_bank_questions",
@@ -102,6 +108,37 @@ class Question(db.Model):
     times_correct = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Per-language variants for Coding questions. Optional: a question may still
+    # rely on the legacy code_* columns above as its single-language content.
+    code_variants = db.relationship(
+        "CodeVariant", backref="question", lazy=True, cascade="all, delete-orphan"
+    )
+
+
+class CodeVariant(db.Model):
+    """A per-language variant of a Coding question.
+
+    One logical Coding Question can be solved in multiple languages. Because the
+    expected output representation differs per language (e.g. a Python list repr
+    vs. a TypeScript/Java string), each language keeps its own sample/hidden
+    test I/O plus optional starter code. Players pick a language and are graded
+    against that variant.
+    """
+    __tablename__ = "code_variants"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    question_id = db.Column(db.Integer, db.ForeignKey("questions.id"), nullable=False)
+    language = db.Column(db.String(32), nullable=False)
+    starter_code = db.Column(db.Text, nullable=True)
+    code_sample_input = db.Column(db.Text, nullable=True)
+    code_sample_output = db.Column(db.Text, nullable=True)
+    code_hidden_input = db.Column(db.Text, nullable=True)
+    code_hidden_output = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (db.UniqueConstraint("question_id", "language", name="uq_question_language"),)
 
 
 class Game(db.Model):
