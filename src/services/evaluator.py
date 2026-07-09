@@ -1,4 +1,5 @@
 """Question evaluation services using Strands Agents for general knowledge and container sandbox for coding."""
+import ast
 import json
 import logging
 import os
@@ -341,18 +342,73 @@ console.log(typeof result === "object" ? JSON.stringify(result) : result);
         return player_code
 
 
-def _normalize_compare(actual, expected):
-    """Normalize and compare code outputs (handles set ordering, whitespace, etc.)."""
-    import ast
+# Sentinel returned when a program's output cannot be parsed into a structured value.
+_UNPARSED = object()
 
-    def normalize(s):
-        s = s.strip().replace(" ", "")
+
+def _canonicalize_output(value):
+    """Recursively canonicalize a parsed output value for language-agnostic comparison.
+
+    Different languages represent the same logical value differently (e.g. a
+    JS object always has string keys while Python keeps int keys, `42` vs
+    `42.0`, `true` vs `True`). We collapse those representation differences so
+    that a semantically-correct answer compares equal regardless of language,
+    while genuinely different values still differ.
+    """
+    # bool must be checked before int (bool is a subclass of int in Python).
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, dict):
+        # Object/dict keys are compared as strings so {0: "a"} == {"0": "a"}.
+        return {str(_canonicalize_output(k)): _canonicalize_output(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        # Order-sensitive: arrays/lists must match position for position.
+        return [_canonicalize_output(v) for v in value]
+    if isinstance(value, (set, frozenset)):
+        # Order-insensitive by nature.
+        return frozenset(_canonicalize_output(v) for v in value)
+    if isinstance(value, (int, float)):
+        # Compare numbers by value: 42 == 42.0, but 42.5 stays a float.
+        as_float = float(value)
+        return int(as_float) if as_float.is_integer() else as_float
+    return value
+
+
+def _parse_output(s):
+    """Parse program stdout into a canonical structured value.
+
+    Tolerant of both JSON (double quotes, true/false/null) and Python-literal
+    (single quotes, True/False/None, tuples) representations. Returns
+    ``_UNPARSED`` when the text is not a structured value (e.g. a plain word).
+    """
+    s = s.strip()
+    for parser in (json.loads, ast.literal_eval):
         try:
-            val = ast.literal_eval(s)
-            if isinstance(val, set):
-                return frozenset(val)
-            return val
-        except (ValueError, SyntaxError):
-            return s.lower()
+            return _canonicalize_output(parser(s))
+        except (ValueError, SyntaxError, TypeError, RecursionError):
+            continue
+    return _UNPARSED
 
-    return normalize(actual) == normalize(expected)
+
+def _normalize_compare(actual, expected):
+    """Compare program output to expected output in a language-agnostic way.
+
+    Absorbs representation differences that vary across languages — object/dict
+    key types (int vs string), number formatting (42 vs 42.0), boolean casing
+    (true/True), quote styles, key ordering and surrounding whitespace — while
+    staying strict about genuinely different values. Falls back to a
+    case-insensitive scalar comparison when the output is not structured.
+    """
+    actual = (actual or "").strip()
+    expected = (expected or "").strip()
+
+    if actual == expected:
+        return True
+
+    actual_struct = _parse_output(actual)
+    expected_struct = _parse_output(expected)
+    if actual_struct is not _UNPARSED and expected_struct is not _UNPARSED:
+        return actual_struct == expected_struct
+
+    # Non-structured output (e.g. a plain word): compare case-insensitively.
+    return actual.lower() == expected.lower()
