@@ -131,6 +131,10 @@ class CodeVariant(db.Model):
     question_id = db.Column(db.Integer, db.ForeignKey("questions.id"), nullable=False)
     language = db.Column(db.String(32), nullable=False)
     starter_code = db.Column(db.Text, nullable=True)
+    # Reference solution written in THIS variant's language. Shown to the player
+    # (when enabled) after a wrong answer so the displayed solution is runnable
+    # in the language they chose. Optional; falls back to Question.correct_answer.
+    correct_answer = db.Column(db.Text, nullable=True)
     code_sample_input = db.Column(db.Text, nullable=True)
     code_sample_output = db.Column(db.Text, nullable=True)
     code_hidden_input = db.Column(db.Text, nullable=True)

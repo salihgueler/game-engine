@@ -162,7 +162,9 @@ def _resolve_variant(question, language):
     Prefers the requested language's variant, then the question's primary
     (legacy) language variant, then the first available variant, and finally
     the legacy code_* columns when no variants exist. Returns a tuple of
-    (language, sample_input, sample_output, hidden_input, hidden_output).
+    (language, sample_input, sample_output, hidden_input, hidden_output,
+    variant_correct_answer). variant_correct_answer is the reference solution
+    stored for the chosen variant's language, or None when unavailable.
     """
     requested = (language or "").lower().strip()
     variants = list(getattr(question, "code_variants", []) or [])
@@ -181,6 +183,7 @@ def _resolve_variant(question, language):
             chosen.code_sample_output,
             chosen.code_hidden_input,
             chosen.code_hidden_output,
+            getattr(chosen, "correct_answer", None),
         )
 
     return (
@@ -189,6 +192,7 @@ def _resolve_variant(question, language):
         question.code_sample_output,
         question.code_hidden_input,
         question.code_hidden_output,
+        None,
     )
 
 
@@ -202,7 +206,7 @@ def evaluate_coding(question, player_code, language=None):
     if _get_config_flag(GlobalConfig.AUTO_PASS_ALL):
         return {"correct": True, "grade": "Correct", "message": "Auto-pass enabled.", "hint_passed": True, "hidden_passed": True}
 
-    language, sample_input, sample_output, hidden_input, hidden_output = _resolve_variant(question, language)
+    language, sample_input, sample_output, hidden_input, hidden_output, variant_answer = _resolve_variant(question, language)
 
     logger.info(
         "Coding evaluation started: question_id=%s, language=%s, code_length=%d",
@@ -238,13 +242,17 @@ def evaluate_coding(question, player_code, language=None):
         }
 
         if not is_correct and _get_config_flag(GlobalConfig.SHOW_CORRECT_ON_WRONG):
-            # `correct_answer` holds a single reference solution written in the
-            # question's primary language. Only surface it when the graded
-            # language matches — otherwise the player would be shown code in a
-            # different language that cannot run in their chosen editor.
-            primary_language = (question.code_programming_language or "").lower().strip()
-            if question.correct_answer and language == primary_language:
-                result_data["correct_answer"] = question.correct_answer
+            # Prefer a reference solution written in the graded language. The
+            # per-variant `correct_answer` is by construction in that language,
+            # so it is safe to show. Otherwise fall back to the question-level
+            # reference, but only when it matches the primary language — showing
+            # a different language's code would not run in the player's editor.
+            if variant_answer:
+                result_data["correct_answer"] = variant_answer
+            else:
+                primary_language = (question.code_programming_language or "").lower().strip()
+                if question.correct_answer and language == primary_language:
+                    result_data["correct_answer"] = question.correct_answer
 
         # Update stats
         if is_correct:
