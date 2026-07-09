@@ -238,7 +238,13 @@ def evaluate_coding(question, player_code, language=None):
         }
 
         if not is_correct and _get_config_flag(GlobalConfig.SHOW_CORRECT_ON_WRONG):
-            result_data["correct_answer"] = question.correct_answer
+            # `correct_answer` holds a single reference solution written in the
+            # question's primary language. Only surface it when the graded
+            # language matches — otherwise the player would be shown code in a
+            # different language that cannot run in their chosen editor.
+            primary_language = (question.code_programming_language or "").lower().strip()
+            if question.correct_answer and language == primary_language:
+                result_data["correct_answer"] = question.correct_answer
 
         # Update stats
         if is_correct:
@@ -367,10 +373,14 @@ def _canonicalize_output(value):
     if isinstance(value, (set, frozenset)):
         # Order-insensitive by nature.
         return frozenset(_canonicalize_output(v) for v in value)
-    if isinstance(value, (int, float)):
-        # Compare numbers by value: 42 == 42.0, but 42.5 stays a float.
-        as_float = float(value)
-        return int(as_float) if as_float.is_integer() else as_float
+    if isinstance(value, int):
+        # Python ints are arbitrary precision — keep as-is to avoid lossy float
+        # round-trips for very large integers. (42 == 42.0 still holds because a
+        # float 42.0 normalizes to int 42 just below.)
+        return value
+    if isinstance(value, float):
+        # Compare numbers by value: 42.0 == 42, but 42.5 stays a float.
+        return int(value) if value.is_integer() else value
     return value
 
 
