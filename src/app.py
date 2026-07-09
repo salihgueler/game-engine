@@ -69,10 +69,32 @@ def create_app(config_name=None):
     # Create tables and seed config
     with app.app_context():
         db.create_all()
+        _migrate_schema()
         _seed_config()
         _backfill_code_variants()
 
     return app
+
+
+def _migrate_schema():
+    """Apply additive, idempotent column migrations.
+
+    db.create_all() creates missing tables but never alters existing ones, so
+    new columns on already-created tables must be added explicitly. Each step
+    checks the live schema first, making this safe to run on every boot.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    try:
+        columns = {c["name"] for c in inspector.get_columns("code_variants")}
+    except Exception:
+        # Table not created yet (fresh DB) — create_all already handled it.
+        return
+
+    if "correct_answer" not in columns:
+        db.session.execute(text("ALTER TABLE code_variants ADD COLUMN correct_answer TEXT"))
+        db.session.commit()
 
 
 def _seed_config():
