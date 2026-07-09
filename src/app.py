@@ -86,15 +86,22 @@ def _migrate_schema():
     from sqlalchemy import inspect, text
 
     inspector = inspect(db.engine)
-    try:
-        columns = {c["name"] for c in inspector.get_columns("code_variants")}
-    except Exception:
-        # Table not created yet (fresh DB) — create_all already handled it.
+    # has_table avoids a broad try/except around introspection, so a genuine
+    # engine/connection error propagates and halts startup loudly instead of
+    # being masked as "table missing".
+    if not inspector.has_table("code_variants"):
+        # Fresh database — create_all already produced the current schema.
         return
 
+    columns = {c["name"] for c in inspector.get_columns("code_variants")}
     if "correct_answer" not in columns:
-        db.session.execute(text("ALTER TABLE code_variants ADD COLUMN correct_answer TEXT"))
-        db.session.commit()
+        try:
+            db.session.execute(text("ALTER TABLE code_variants ADD COLUMN correct_answer TEXT"))
+            db.session.commit()
+        except Exception:
+            # Leave no half-open transaction behind for later startup steps.
+            db.session.rollback()
+            raise
 
 
 def _seed_config():
